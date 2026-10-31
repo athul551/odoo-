@@ -122,7 +122,7 @@ def _subscription(reference) -> Subscription:
     if reference in (None, ""):
         raise ToolInputError("subscription (number or id) is required.")
     queryset = Subscription.objects.select_related("customer", "plan").prefetch_related(
-        "lines__product", "lines__variant", "lines__tax_rule"
+        "lines__product", "lines__variant", "lines__tax_rule", "pause_periods"
     )
     text = str(reference).strip()
     if text.isdigit():
@@ -263,7 +263,9 @@ def list_tax_rules(args: dict, ctx: ServerContext):
 def list_subscriptions(args: dict, ctx: ServerContext):
     queryset = (
         Subscription.objects.select_related("customer", "plan")
-        .prefetch_related("lines__product", "lines__variant", "lines__tax_rule")
+        .prefetch_related(
+            "lines__product", "lines__variant", "lines__tax_rule", "pause_periods"
+        )
     )
     customer_id = _int(args, "customer_id", minimum=1)
     if customer_id:
@@ -461,12 +463,14 @@ def subscription_transition(args: dict, ctx: ServerContext):
     elif action == "renew":
         subscription = subscription_services.renew(sub=subscription, actor=actor, on=on)
     elif action == "pause":
+        # `on` anchors the recorded pause span: billing drops every period that
+        # overlaps it, so a later resume never back-bills suspended months.
         subscription = subscription_services.set_paused(
-            sub=subscription, actor=actor, paused=True
+            sub=subscription, actor=actor, paused=True, on=on or date.today()
         )
     elif action == "resume":
         subscription = subscription_services.set_paused(
-            sub=subscription, actor=actor, paused=False
+            sub=subscription, actor=actor, paused=False, on=on or date.today()
         )
     else:
         raise ToolInputError(f"action must be one of {sorted(TRANSITIONS)}")
@@ -508,6 +512,40 @@ def run_billing_day(args: dict, ctx: ServerContext):
         return {"executed": False, "preview": _billing_preview(on)}
     run = billing_services.run_billing_day(on=on, actor=ctx.actor)
     return {"executed": True, **BillingRunSerializer(run).data}
+
+
+@tool(
+    "sweep_expired_subscriptions",
+    "Close Active subscriptions whose term has ended on plans with "
+    "auto_close_on_expiry. Without this sweep the per-plan switch does nothing "
+    "and expired Actives inflate MRR forever. Requires confirm=true.",
+    _schema({
+        "on": {"type": "string", "description": "YYYY-MM-DD, defaults to today"},
+        "confirm": {"type": "boolean"},
+    }),
+    write=True,
+)
+def sweep_expired_subscriptions(args: dict, ctx: ServerContext):
+    on = _date(args, "on") or date.today()
+    pending = list(
+        Subscription.objects.filter(
+            stage=Subscription.Stage.ACTIVE,
+            expiry_date__lte=on,
+            plan__auto_close_on_expiry=True,
+        )
+        .order_by("pk")
+        .values_list("number", flat=True)
+    )
+    if not _bool(args, "confirm"):
+        return {"executed": False, "on": on.isoformat(),
+                "would_close": pending, "count": len(pending)}
+    closed = subscription_services.auto_close_expired(on=on)
+    return {
+        "executed": True,
+        "on": on.isoformat(),
+        "closed": [sub.number for sub in closed],
+        "count": len(closed),
+    }
 
 
 @tool(
