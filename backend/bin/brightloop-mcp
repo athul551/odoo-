@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Launcher so MCP clients can point at one stable path regardless of their cwd.
+#
+#   { "command": "/abs/path/backend/bin/brightloop-mcp",
+#     "args": ["--actor", "ops@brightloop.io"] }
+#
+set -euo pipefail
+BACKEND_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$BACKEND_DIR"
+PYTHON="${BRIGHTLOOP_PYTHON:-.venv/bin/python}"
+exec "$PYTHON" -m mcp_server "$@"
