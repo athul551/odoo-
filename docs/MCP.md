@@ -2,6 +2,8 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the Brightloop domain as tools, so any MCP-capable agent — Claude Code, Codex CLI, Cursor, Cline, a custom client, or a remote HTTP connector — can quote, activate, bill, collect and report without writing SQL.
 
+The normative contract — transports, authority model, failure semantics, invariants and the conformance checklist — is [`MCP-SPEC.md`](MCP-SPEC.md). This page is the operator guide.
+
 It is **not** a second implementation. Every tool calls the same service layer as the REST API (`subscriptions.services`, `billing.services`, `payments.services`, `reporting.services`), so stage rules, role gates, idempotent billing and ledger maths behave identically whichever door is used.
 
 ## Run it

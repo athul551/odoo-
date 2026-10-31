@@ -113,7 +113,7 @@ cd backend
 .venv/bin/python -m mcp_server --actor you@example.io  # stdio server
 ```
 
-Any MCP client can connect through `backend/bin/brightloop-mcp`; see `docs/MCP.md` for Claude Code, Codex, Cursor and HTTP connector configuration, plus the safety model (role ceiling, read-only mode, dry-run billing).
+Any MCP client can connect through `backend/bin/brightloop-mcp`; see `docs/MCP.md` for Claude Code, Codex, Cursor and HTTP connector configuration, plus the safety model (role ceiling, read-only mode, dry-run billing). The normative contract is [`docs/MCP-SPEC.md`](docs/MCP-SPEC.md).
 
 ## Backend console (frontend)
 
