@@ -81,7 +81,7 @@ curl -s localhost:8765/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-The endpoint speaks JSON-RPC 2.0 over `POST /mcp`, answers `202` for notifications, and keeps no session state. Put it behind TLS (reverse proxy) if it leaves localhost, and always set `--token` when it does.
+The endpoint speaks JSON-RPC 2.0 over `POST /mcp`, answers `202` for notifications, and keeps no session state. Put it behind TLS (reverse proxy) if it leaves localhost. A bind beyond loopback is refused unless `--token` (or `BRIGHTLOOP_MCP_TOKEN`) is set — the server fails closed rather than expose an unauthenticated admin actor to the network.
 
 ## Security model
 
@@ -89,7 +89,7 @@ The endpoint speaks JSON-RPC 2.0 over `POST /mcp`, answers `202` for notificatio
 - MCP refuses to start as a customer-role user: the portal is not an automation surface.
 - `--read-only` keeps the catalogue visible but refuses every write tool with an `isError` result.
 - `run_billing_day` requires `confirm: true`; without it the caller gets the preview, so an agent cannot bill by accident.
-- HTTP mode optionally requires `Authorization: Bearer <token>`; the server binds `127.0.0.1` unless told otherwise.
+- HTTP mode requires `Authorization: Bearer <token>` for any non-loopback bind; the server refuses to start otherwise. Loopback binds may omit it (a warning is printed).
 - Tool failures are returned as `isError: true` content, never as a crashed session, and never as a stack trace to the client.
 
 ## Tools
@@ -111,7 +111,8 @@ Read tools (`readOnlyHint: true`) are safe to call at any time.
 | `remove_subscription_line` | ✔ | recomputes totals |
 | `subscription_transition` | ✔ | `send_quotation` → `confirm` → `activate`, plus `close`, `renew`, `pause`, `resume` |
 | `preview_billing_day` | – | what would be billed on a date |
-| `run_billing_day` | ✔ | idempotent batch; needs `confirm: true` |
+| `run_billing_day` | ✔ | idempotent batch; needs `confirm: true`; a bad record is reported, not fatal |
+| `sweep_expired_subscriptions` | ✔ | closes expired terms on `auto_close_on_expiry` plans; needs `confirm: true` |
 | `list_invoices` | – | filter by customer, status, subscription, `overdue` |
 | `get_invoice` | – | lines, payments, applied discounts |
 | `invoice_action` | ✔ | `confirm`, `send`, `print`, `cancel` |

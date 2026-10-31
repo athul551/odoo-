@@ -105,6 +105,7 @@ Plan behaviors (`auto_close_on_expiry`, `allow_early_close`, `allow_pause`, `all
 `GET|POST /subscriptions/`, `GET|PATCH|DELETE /subscriptions/{id}/`
 Filters: `?stage=`, `?customer=`, `?plan=`, `?q=`.
 PATCH accepts only `start_date`, `expiry_date`, `payment_terms_days` — stages move through actions.
+Each subscription serialises its `pause_periods` (`{id, started_on, ended_on, reason}`; `ended_on: null` means still paused).
 
 Stage actions (`POST /subscriptions/{id}/…`):
 
@@ -115,7 +116,7 @@ Stage actions (`POST /subscriptions/{id}/…`):
 | `activate/` | Confirmed → Active | optional `start_date`, `expiry_date` |
 | `close/` | any open → Closed | `{reason}`; early close may be refused by the plan |
 | `renew/` | Active stays Active | extends one calendar-safe period; reopens an expired Closed term |
-| `pause/` / `resume/` | flag on Active | billing skips paused subscriptions |
+| `pause/` / `resume/` | flag on Active | records a pause span; billing drops overlapping periods |
 
 Line editing (Draft/Quotation only):
 
@@ -165,12 +166,26 @@ Rules are never deleted; deactivation keeps issued invoices truthful.
 
 `dry_run: true` answers "what would tonight bill" with no writes. A real run is idempotent: a period already invoiced is skipped, a cancelled invoice frees its period for rebilling.
 
+The batch is isolated per subscription: one malformed record is reported in `report.failed` (and counted in `failed_count`) while every other invoice still commits, and the run row itself is written before any work so an attempt is always auditable.
+
+The preview also reports revenue waiting on ended terms:
+
+```json
+{"on": "2026-05-01", "subscriptions": 1, "invoices": 3, "missed_periods": 3,
+ "problems": [], "items": [{"subscription": "SUB-2026-000001", "period_start": "2026-01-01",
+ "period_end": "2026-02-01", "term_ended": true}]}
+```
+
+`missed_periods` counts due periods of subscriptions whose term has already ended — the signal that a billing day was skipped. Paused spans are never billed, before or after a resume.
+
+Schedulers call `python manage.py bill_day [--on DATE] [--dry-run]`; it exits non-zero when any record failed. `python manage.py sweep_subscriptions [--on DATE]` closes Active subscriptions on `auto_close_on_expiry` plans whose term has ended (without it that per-plan switch does nothing, and expired Actives inflate MRR).
+
 ### Reporting
 
 `GET /reporting/summary/?start=&end=&as_of=&customer_id=` — active/paused subscriptions, MRR/ARR, invoiced, collected, outstanding, overdue.
 `GET /reporting/chase/?kind=overdue|outstanding&older_than_days=&page=&page_size=` — collections lists, oldest due first.
 
-MRR normalisation is declared domain maths: daily ×365⁄12, weekly ×52⁄12, monthly ×1, yearly ÷12, aggregated in SQL.
+MRR normalisation is declared domain maths: daily ×365⁄12, weekly ×52⁄12, monthly ×1, yearly ÷12, aggregated in SQL. Only Active, unpaused subscriptions still inside their term count: an expired term carries no MRR even before the sweep closes it.
 
 ## Performance
 

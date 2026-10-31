@@ -30,3 +30,36 @@ Each billing run is a recorded, transactional batch job:
 - Migrations must create the partial index (Postgres-specific; the stack is Postgres-only by design).
 - Adding a normal unique index would make credit-then-rebill (ADR 0002) impossible; the partial
   version is the whole point.
+
+## Amendment: completeness and batch isolation (2026-10-31)
+
+The idempotency guarantee above was sound, but completeness was not: candidates were filtered on
+`expiry_date__gt=on`, so a period that fell due before a term ended and was never billed could never
+be billed again, and the whole batch shared one transaction — a single malformed record (a bad plan
+frequency) rolled back every other invoice *and* the run row itself.
+
+Amended decisions:
+
+1. **Candidates are scanned by period, not by expiry.** Any Active subscription whose term started by
+   the business date is a candidate, ended or not; the per-period bound `cursor < expiry_date` keeps
+   the scan inside the term. The preview reports those periods as `missed_periods` so an operator sees
+   revenue waiting on an ended term.
+2. **The run row is written before any work, outside the batch transaction.** An attempted run is
+   always auditable, even if the process is killed mid-batch.
+3. **Each subscription commits in its own savepoint.** A record that raises is collected in
+   `report["failed"]` and counted in `failed_count`; the remaining invoices still commit.
+4. **Paused periods are dropped, never deferred.** A recorded pause span that overlaps a period
+   excludes it permanently (see CONTEXT.md, "Pause Span"), rather than skipping it and back-billing
+   it on resume.
+5. **A scheduler trigger is part of the design, not deployment trivia.** `manage.py bill_day` runs the
+   batch and exits non-zero on failures; `manage.py sweep_subscriptions` closes expired terms on
+   `auto_close_on_expiry` plans. Without the sweep, that per-plan switch is dead configuration.
+
+### Known limitation
+
+The scan covers **Active** terms only. A subscription that was closed while a period was still
+unbilled is not revisited, because there is no `closed_on` field to bound a post-close scan — billing
+past an early close would charge for service that ended. Until that field exists, the operator sees
+the gap through `missed_periods` *before* closing the term, and can raise a manual invoice.
+
+
