@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const { isAdmin, isStaff } = useAuth()
   const [summary, setSummary] = useState(null)
   const [chase, setChase] = useState(null)
+  const [expiring, setExpiring] = useState(null)
   const [preview, setPreview] = useState(null)
   const [previewing, setPreviewing] = useState(false)
   const [ops, setOps] = useState(null)
@@ -42,6 +43,10 @@ export default function DashboardPage() {
           .get('/reporting/chase/', { params: { kind: 'overdue', page_size: 5 } })
           .then(({ data: chaseData }) => setChase(chaseData))
           .catch(() => setChase(null))
+        api
+          .get('/reporting/expiring/', { params: { within_days: 30, page_size: 5 } })
+          .then(({ data: renewalData }) => setExpiring(renewalData))
+          .catch(() => setExpiring(null))
       }
       if (isAdmin) {
         try {
@@ -249,6 +254,62 @@ export default function DashboardPage() {
                     and {chase.count - chase.results.length} more ·{' '}
                     <Link to="/billing" className="text-accent hover:text-accent-hover">
                       all in Billing
+                    </Link>
+                  </p>
+                )}
+              </Card>
+            )}
+
+            {isStaff && (
+              <Card
+                title="Renewals due"
+                subtitle="Terms ending in the next 30 days"
+                actions={
+                  <Link to="/subscriptions" className="text-xs font-medium text-accent hover:text-accent-hover">
+                    Subscriptions →
+                  </Link>
+                }
+                bodyClassName=""
+              >
+                {expiring && expiring.results?.length > 0 ? (
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Subscription</Th>
+                        <Th>Expires</Th>
+                        <Th className="text-right">Value</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expiring.results.map((sub) => (
+                        <Tr key={sub.number}>
+                          <Td>
+                            <Link
+                              to={`/subscriptions/${sub.id}`}
+                              className="font-mono text-xs text-paper hover:text-accent"
+                            >
+                              {sub.number}
+                            </Link>
+                            <p className="mt-0.5 text-xs text-faint">{sub.customer}</p>
+                          </Td>
+                          <Td>
+                            <span className="text-xs text-warn">{sub.expiry_date}</span>
+                          </Td>
+                          <Td className="text-right text-paper">{money(sub.total)}</Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-faint">
+                    Nothing expires in the next 30 days.
+                  </p>
+                )}
+                {expiring && expiring.total > (expiring.results?.length ?? 0) && (
+                  <p className="mt-3 text-xs text-faint">
+                    and {expiring.total - expiring.results.length} more ·{' '}
+                    <Link to="/subscriptions" className="text-accent hover:text-accent-hover">
+                      all subscriptions
                     </Link>
                   </p>
                 )}

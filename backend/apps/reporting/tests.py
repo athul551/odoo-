@@ -342,3 +342,52 @@ class ExpiredTermTests(ReportingTestCase):
 
         self.assertEqual(out["paused_subscriptions"], 1)
         self.assertTrue(paused_live.pk)
+
+
+class ExpiringRenewalQueueTests(ReportingTestCase):
+    """The renewal queue: the spec's 'renewals get missed' has a list now."""
+
+    def setUp(self):
+        super().setUp()
+        self.plan = self.plan("Monthly", Frequency.MONTHLY)
+
+    def test_only_terms_ending_inside_the_horizon_are_listed(self):
+        soon = self.sub(number="SUB-1", plan=self.plan, subtotal="100.00")
+        soon.expiry_date = date(2026, 1, 20)
+        soon.save(update_fields=["expiry_date"])
+        far = self.sub(number="SUB-2", plan=self.plan, subtotal="100.00")
+        far.expiry_date = date(2026, 9, 1)
+        far.save(update_fields=["expiry_date"])
+
+        body = services.expiring_qs(within_days=30, on=date(2026, 1, 1))
+        self.assertEqual([s.number for s in body], ["SUB-1"])
+
+    def test_paused_and_closed_terms_are_not_renewals(self):
+        paused = self.sub(number="SUB-3", plan=self.plan, subtotal="100.00", paused=True)
+        paused.expiry_date = date(2026, 1, 10)
+        paused.save(update_fields=["expiry_date"])
+        closed = self.sub(number="SUB-4", plan=self.plan, subtotal="100.00",
+                          stage=Subscription.Stage.CLOSED)
+        closed.expiry_date = date(2026, 1, 11)
+        closed.save(update_fields=["expiry_date"])
+
+        self.assertEqual(services.expiring_qs(within_days=30, on=date(2026, 1, 1)).count(), 0)
+
+    def test_endpoint_is_staff_only_and_reports_the_horizon(self):
+        sub = self.sub(number="SUB-5", plan=self.plan, subtotal="100.00")
+        sub.expiry_date = date(2026, 1, 15)
+        sub.save(update_fields=["expiry_date"])
+
+        client = APIClient()
+        client.force_authenticate(self.actor)
+        response = client.get("/api/reporting/expiring/?within_days=30&as_of=2026-01-01")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["within_days"], 30)
+        self.assertEqual(response.json()["total"], 1)
+        self.assertEqual(response.json()["results"][0]["number"], "SUB-5")
+
+        portal_user = portal(customer=self.customer)
+        client.force_authenticate(portal_user)
+        self.assertEqual(
+            client.get("/api/reporting/expiring/").status_code, 403
+        )

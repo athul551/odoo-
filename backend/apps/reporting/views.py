@@ -55,6 +55,48 @@ class SummaryView(APIView):
         return Response(data)
 
 
+class ExpiringListView(APIView):
+    """Subscriptions whose term ends inside the next N days — the renewal queue."""
+
+    permission_classes = [IsAdminOrStaff]
+
+    def get(self, request):
+        try:
+            within_days = _parse_int(request, "within_days", default=30, minimum=1,
+                                     maximum=365)
+            customer_id = _parse_int(request, "customer_id", minimum=1)
+            on = _parse_date(request, "as_of")
+            page = _parse_int(request, "page", default=1, minimum=1)
+            page_size = min(_parse_int(request, "page_size", default=50, minimum=1) or 50,
+                            MAX_PAGE_SIZE)
+        except ValidationError as exc:
+            return Response({"errors": exc.message_dict if hasattr(exc, "message_dict")
+                             else [str(exc)]}, status=400)
+
+        qs = services.expiring_qs(within_days=within_days, customer_id=customer_id, on=on)
+        total = qs.count()
+        start_at = (page - 1) * page_size
+        rows = list(qs[start_at:start_at + page_size])
+        return Response({
+            "within_days": within_days,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "results": [
+                {
+                    "number": sub.number,
+                    "id": sub.pk,
+                    "customer": sub.customer.name,
+                    "plan": sub.plan.name,
+                    "expiry_date": sub.expiry_date.isoformat(),
+                    "allow_renew": bool(sub.plan.allow_renew),
+                    "total": str(sub.total),
+                }
+                for sub in rows
+            ],
+        })
+
+
 class ChaseListView(APIView):
     """Paginated outstanding/overdue invoice lists for the collections chase."""
 

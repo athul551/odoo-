@@ -145,6 +145,25 @@ def summary(*, start: date | None = None, end: date | None = None,
     }
 
 
+def expiring_qs(*, within_days: int = 30, customer_id=None, on: date | None = None):
+    """
+    The renewal queue: Active subscriptions whose term ends inside the next
+    ``within_days``. This is the answer to "renewals are remembered by whoever
+    notices first" — a list nobody has to remember to build. Soonest first.
+    """
+    on = on or date.today()
+    horizon = on + timedelta(days=within_days)
+    qs = Subscription.objects.filter(
+        stage=Subscription.Stage.ACTIVE,
+        is_paused=False,
+        expiry_date__gt=on,
+        expiry_date__lte=horizon,
+    )
+    if customer_id:
+        qs = qs.filter(customer_id=customer_id)
+    return qs.select_related("customer", "plan").order_by("expiry_date", "pk")
+
+
 def chase_qs(*, kind: str, customer_id=None, on: date | None = None,
              older_than_days: int | None = None):
     """
