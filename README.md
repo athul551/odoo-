@@ -114,3 +114,21 @@ cd backend
 ```
 
 Any MCP client can connect through `backend/bin/brightloop-mcp`; see `docs/MCP.md` for Claude Code, Codex, Cursor and HTTP connector configuration, plus the safety model (role ceiling, read-only mode, dry-run billing).
+
+## Operations
+
+Two management commands are the scheduler surface; point cron (or a sidecar) at them nightly:
+
+```bash
+cd backend
+.venv/bin/python manage.py bill_day --dry-run          # what tonight would bill, no writes
+.venv/bin/python manage.py bill_day                    # idempotent batch; exits non-zero on any failed record
+.venv/bin/python manage.py sweep_subscriptions         # close expired terms on auto_close_on_expiry plans
+```
+
+Both accept `--on YYYY-MM-DD` to backfill or replay a date. The billing batch commits each subscription in its own savepoint: one bad record lands in `report.failed` while every healthy invoice survives, and the run row is written before any work so the attempt is always visible.
+
+### Production notes
+
+- Set `REDIS_URL` so throttle counters (login, writes) are shared across gunicorn workers; without it each worker keeps its own LocMem counter and the configured limits multiply by the worker count.
+- The MCP HTTP transport refuses a non-loopback bind without `--token`. Keep the default `127.0.0.1` for local agents, or set the token before containerising it.
