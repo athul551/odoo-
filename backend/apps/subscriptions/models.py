@@ -120,6 +120,50 @@ class Subscription(models.Model):
             self.save(update_fields=["subtotal", "tax_total", "total", "updated_at"])
 
 
+class PausePeriod(models.Model):
+    """
+    A span during which service — and therefore billing — was suspended.
+
+    Pausing is *not* a deferral: a period that overlaps a pause is never
+    billed, not even after the subscription resumes. The spans are the truth;
+    ``Subscription.is_paused`` is only the "a span is open right now" flag the
+    UI and API read.
+    """
+
+    subscription = models.ForeignKey(
+        Subscription, on_delete=models.CASCADE, related_name="pause_periods"
+    )
+    started_on = models.DateField()
+    ended_on = models.DateField(null=True, blank=True)  # null = still paused
+    reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["started_on"]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(ended_on__isnull=True)
+                | models.Q(ended_on__gte=models.F("started_on")),
+                name="pause_period_not_inverted",
+            ),
+        ]
+
+    def __str__(self):
+        end = self.ended_on.isoformat() if self.ended_on else "…"
+        return f"{self.subscription.number}: paused {self.started_on} → {end}"
+
+    @property
+    def is_open(self) -> bool:
+        return self.ended_on is None
+
+    def overlaps(self, start: date, end: date) -> bool:
+        """Does the half-open period [start, end) touch this pause at all?"""
+        span_end = self.ended_on or date.max
+        if span_end <= self.started_on:  # a same-day pause is empty, not a gap
+            return False
+        return self.started_on < end and start < span_end
+
+
 class SubscriptionLine(models.Model):
     """
     Product line with price/tax snapshots. (product, variant) is unique per

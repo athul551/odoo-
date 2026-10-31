@@ -41,6 +41,8 @@ class BillingRun(models.Model):
     finished_at = models.DateTimeField(null=True, blank=True)
     billed_count = models.PositiveIntegerField(default=0)
     skipped_count = models.PositiveIntegerField(default=0)
+    # A record that cannot be billed is reported, never allowed to abort the batch.
+    failed_count = models.PositiveIntegerField(default=0)
     report = models.JSONField(default=dict, blank=True)
 
     class Meta:

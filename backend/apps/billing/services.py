@@ -1,12 +1,17 @@
 """
 Billing-day machinery (ADR 0001 / ADR 0002 live here).
 
-run_billing_day(on): transactional, idempotent batch.
-  - ACTIVE, unpaused subscriptions whose term is running are candidates
-  - every period anchored on the subscription start, beginning on/before `on`
-    and before the expiry, is billed exactly once
-  - an existing non-cancelled invoice for a period means "already billed" -> skip
-  - a cancelled invoice frees its period -> it gets billed again (credit-then-rebill)
+run_billing_day(on): idempotent, isolated batch.
+  - candidates are ACTIVE subscriptions whose term has started, *including*
+    terms that have since ended: a period that fell due inside the term is
+    billed even if billing day was missed past the expiry (never skipped)
+  - every period is anchored on the subscription start and must begin
+    on/before `on` and before the expiry
+  - a period overlapping a recorded pause is dropped, never deferred
+  - an existing non-cancelled invoice for a period means "already billed"
+  - a cancelled invoice frees its period -> it gets billed again (ADR 0002)
+  - each subscription commits in its own savepoint: one bad record is
+    reported in run.report["failed"] and the rest of the batch survives
   - concurrent runs use select_for_update(skip_locked=True): the batches are
     disjoint, and the partial unique index is the final arbiter.
 """
@@ -17,9 +22,6 @@ from decimal import Decimal
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
-
-from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
 
 from apps.common.models import NumberSeries
 from apps.common.timeutils import advance
@@ -83,21 +85,41 @@ def deactivate_discount_rule(*, rule: DiscountRule, actor) -> DiscountRule:
     return rule
 
 
-def _period_starts_due(sub: Subscription, on: date) -> list[date]:
+def _candidate_subscriptions(on: date):
     """
-    Every period of this subscription that started on/before `on` and before
-    expiry. Idempotency does not live here — it is guaranteed by the partial
-    unique index (invoice_one_per_subscription_period) plus the exists()
-    pre-check in run_billing_day, so scanning from the term start is safe
-    even if a previous run died mid-batch.
+    Active terms that had started by `on` — including terms that have already
+    ended. Filtering on ``expiry_date__gt=on`` (the old behaviour) silently
+    dropped every period that fell due before an unbilled term ran out, which
+    is revenue the company can never recover. The per-period bound
+    ``cursor < expiry_date`` keeps the scan inside the term.
+    """
+    return (
+        Subscription.objects
+        .filter(stage=Stage.ACTIVE, start_date__lte=on)
+        .select_related("plan", "customer")
+        .order_by("pk")
+    )
+
+
+def _period_starts_due(sub: Subscription, on: date, pauses=()) -> list[date]:
+    """
+    Every billable period start of this subscription that fell on/before `on`
+    and inside the term, minus any period overlapping a recorded pause.
+
+    Idempotency does not live here — the partial unique index
+    (invoice_one_per_subscription_period) plus the exists() pre-check in
+    run_billing_day make re-scanning from the term start safe even if a
+    previous run died mid-batch.
     """
     starts, cursor = [], sub.start_date
     while cursor <= on and cursor < sub.expiry_date:
-        starts.append(cursor)
-        nxt = advance(cursor, sub.plan.billing_frequency)
-        if nxt <= cursor:  # defensive: arithmetic must always move forward
+        period_end = advance(cursor, sub.plan.billing_frequency)
+        if period_end <= cursor:  # defensive: arithmetic must always move forward
             break
-        cursor = nxt
+        paused = any(span.overlaps(cursor, period_end) for span in pauses)
+        if not paused:
+            starts.append(cursor)
+        cursor = period_end
     return starts
 
 
@@ -252,80 +274,127 @@ def _allocate(total: Decimal, weights: list[Decimal]) -> list[Decimal]:
     return parts
 
 
-@transaction.atomic
 def run_billing_day(*, on: date | None = None, actor=None) -> BillingRun:
+    """
+    Bill everything due on `on`.
+
+    The run row is written *before* any work and outside the batch
+    transaction, so an attempt always leaves an audit record even if the
+    process dies. Each subscription then commits in its own savepoint: a
+    single malformed record is reported in ``report["failed"]`` instead of
+    discarding the invoices already built for the other 286 tenants.
+    """
     if actor is not None:
         _require_staff(actor)
     on = on or date.today()
     run = BillingRun.objects.create(ran_on=on)
 
-    candidates = (
-        Subscription.objects.select_for_update(of=("self",), skip_locked=True)
-        .filter(stage=Stage.ACTIVE, is_paused=False, expiry_date__gt=on)
-        .select_related("plan", "customer")
-        .order_by("pk")
-    )
+    billed = skipped = locked = failed = 0
+    details = {
+        "billed": [],
+        "skipped_already_billed": [],
+        "skipped_locked": [],
+        "failed": [],
+    }
 
-    billed, skipped = 0, 0
-    details = {"billed": [], "skipped_already_billed": [], "skipped_paused": []}
-    for sub in candidates:
-        for period_start in _period_starts_due(sub, on):
-            exists = sub.invoices.filter(
-                period_start=period_start, status__in=Invoice.OPEN_STATUSES
-            ).exists()
-            if exists:
-                skipped += 1
-                details["skipped_already_billed"].append((sub.id, str(period_start)))
-                continue
-            period_end = advance(period_start, sub.plan.billing_frequency)
-            _build_invoice(sub, period_start, period_end, run, on)
-            billed += 1
-            details["billed"].append((sub.id, str(period_start)))
+    candidates = list(_candidate_subscriptions(on).values_list("pk", "number"))
+    for pk, number in candidates:
+        try:
+            with transaction.atomic():
+                sub = (
+                    Subscription.objects
+                    .select_for_update(of=("self",), skip_locked=True)
+                    .select_related("plan", "customer")
+                    .filter(pk=pk)
+                    .first()
+                )
+                if sub is None:
+                    # Another run holds the row: its batch owns this term.
+                    locked += 1
+                    details["skipped_locked"].append(number)
+                    continue
+
+                pauses = list(sub.pause_periods.all())
+                # One query per subscription instead of one per period: an old
+                # daily term scans hundreds of periods on every run.
+                billed_periods = set(
+                    sub.invoices.filter(status__in=Invoice.OPEN_STATUSES)
+                    .values_list("period_start", flat=True)
+                )
+                for period_start in _period_starts_due(sub, on, pauses):
+                    if period_start in billed_periods:
+                        skipped += 1
+                        details["skipped_already_billed"].append(
+                            [number, period_start.isoformat()]
+                        )
+                        continue
+                    period_end = advance(period_start, sub.plan.billing_frequency)
+                    _build_invoice(sub, period_start, period_end, run, on)
+                    billed += 1
+                    details["billed"].append([number, period_start.isoformat()])
+        except Exception as exc:  # one bad record must not sink the batch
+            failed += 1
+            details["failed"].append(
+                {"subscription": number, "error": f"{type(exc).__name__}: {exc}"}
+            )
 
     run.billed_count = billed
     run.skipped_count = skipped
+    run.failed_count = failed
     run.report = details
     run.finished_at = timezone.now()
-    run.save(update_fields=["billed_count", "skipped_count", "report", "finished_at"])
+    run.save(update_fields=[
+        "billed_count", "skipped_count", "failed_count", "report", "finished_at",
+    ])
     return run
 
 
 def preview_billing_day(*, on: date | None = None, limit: int = 200) -> dict:
     """
-    Read-only twin of run_billing_day: exactly the same due-period scan, no
-    writes and no row locks. Lets an operator (or an agent) answer "what would
-    tonight bill?" before committing the batch.
+    Read-only twin of run_billing_day: the same due-period scan, no writes and
+    no row locks. ``missed_periods`` counts periods belonging to a term that
+    has already ended — the operator's signal that a billing day was skipped
+    and revenue is waiting. ``problems`` lists records the run would fail on.
     """
     on = on or date.today()
-    candidates = (
-        Subscription.objects.filter(stage=Stage.ACTIVE, is_paused=False,
-                                    expiry_date__gt=on)
-        .select_related("plan", "customer")
-        .order_by("pk")
-    )
-    items, subscriptions_touched = [], 0
-    for sub in candidates:
-        due_periods = [
-            start for start in _period_starts_due(sub, on)
-            if not sub.invoices.filter(
-                period_start=start, status__in=Invoice.OPEN_STATUSES
-            ).exists()
+    items, problems = [], []
+    subscriptions_touched = missed = 0
+    for sub in _candidate_subscriptions(on):
+        try:
+            due_periods = _period_starts_due(sub, on, list(sub.pause_periods.all()))
+        except Exception as exc:
+            problems.append({"subscription": sub.number,
+                             "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        billed_periods = set(
+            sub.invoices.filter(status__in=Invoice.OPEN_STATUSES)
+            .values_list("period_start", flat=True)
+        )
+        pending = [
+            start for start in due_periods
+            if start not in billed_periods
         ]
-        if not due_periods:
+        if not pending:
             continue
         subscriptions_touched += 1
-        for start in due_periods:
+        term_ended = sub.expiry_date <= on
+        if term_ended:
+            missed += len(pending)
+        for start in pending:
             items.append({
                 "subscription": sub.number,
                 "customer": sub.customer.name,
                 "period_start": start.isoformat(),
                 "period_end": advance(start, sub.plan.billing_frequency).isoformat(),
                 "estimated_subtotal": str(sub.subtotal),
+                "term_ended": term_ended,
             })
     return {
         "on": on.isoformat(),
         "subscriptions": subscriptions_touched,
         "invoices": len(items),
+        "missed_periods": missed,
+        "problems": problems,
         "truncated": len(items) > limit,
         "items": items[:limit],
     }
