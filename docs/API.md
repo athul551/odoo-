@@ -187,6 +187,22 @@ Schedulers call `python manage.py bill_day [--on DATE] [--dry-run]`; it exits no
 
 MRR normalisation is declared domain maths: daily ×365⁄12, weekly ×52⁄12, monthly ×1, yearly ÷12, aggregated in SQL. Only Active, unpaused subscriptions still inside their term count: an expired term carries no MRR even before the sweep closes it.
 
+### Developer console (`/ops/`, admin only)
+
+Off unless `OPS_TOOLS_ENABLED` is on (it defaults to `DEBUG`); disabled endpoints answer **404**, not 403, so a production deployment never advertises them.
+
+| Endpoint | What it returns |
+|---|---|
+| `GET /ops/overview/` | connection details, business row counts, migration totals |
+| `GET /ops/migrations/` | applied + pending migrations per app, with timestamps |
+| `POST /ops/migrations/` | runs `migrate` and returns its output plus the new state |
+| `GET /ops/tables/` | every table with an exact row count and on-disk size |
+| `GET /ops/logs/?limit=` | recent HTTP requests and the SQL each one executed |
+| `DELETE /ops/logs/` | clears the in-memory buffers |
+| `POST /ops/demo-data/` | seeds one coherent demo tenant (idempotent) |
+
+The request/SQL buffers are per-worker, in-memory and bounded (300 entries); they exist to answer "what did that click actually send to Postgres?" in development, not as an audit trail.
+
 ## Performance
 
 The spec's "under 2 seconds with thousands of records" is enforced by tests: `apps/api/tests` plus `apps/reporting/tests.ScalePerformanceTests` seed thousands of rows and assert both the wall clock and a query-count ceiling.
