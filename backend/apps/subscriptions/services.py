@@ -13,7 +13,7 @@ from django.db import transaction
 from apps.common.models import NumberSeries
 from apps.common.timeutils import advance
 
-from .models import InvalidTransition, Subscription, SubscriptionLine
+from .models import InvalidTransition, PausePeriod, Subscription, SubscriptionLine
 
 Stage = Subscription.Stage
 
@@ -34,6 +34,20 @@ def _require_staff(actor):
 def _check_transition(sub: Subscription, target: str) -> None:
     if target not in LEGAL_TRANSITIONS[sub.stage]:
         raise InvalidTransition(sub, target, "stage sequence is linear and never backward")
+
+
+def _sync_back(original: Subscription, locked: Subscription) -> Subscription:
+    """Mirror a row we re-read under lock onto the caller's instance."""
+    original.__dict__.update({k: v for k, v in locked.__dict__.items() if k != "_state"})
+    original._state.db = locked._state.db
+    return original
+
+
+def _close_open_pause(sub: Subscription, on: date) -> None:
+    """End any pause span still open, so it cannot swallow future periods."""
+    for span in sub.pause_periods.filter(ended_on__isnull=True):
+        span.ended_on = max(on, span.started_on)
+        span.save(update_fields=["ended_on"])
 
 
 def _transition(sub: Subscription, target: str, *, reason: str = "") -> None:
@@ -187,6 +201,7 @@ def close(*, sub, actor, reason: str = "Closed by operator",
                                 "plan does not allow early closure and the term has not ended")
     sub.closed_reason = reason
     sub.is_paused = False
+    _close_open_pause(sub, on)
     _transition(sub, Stage.CLOSED)
     return sub
 
@@ -223,16 +238,41 @@ def renew(*, sub, actor, on: date | None = None) -> Subscription:
 
 
 @transaction.atomic
-def set_paused(*, sub, actor, paused: bool) -> Subscription:
-    """Pause flag, not a stage. Active only, and the plan must allow pausing."""
+def set_paused(*, sub, actor, paused: bool, on: date | None = None) -> Subscription:
+    """
+    Pause/resume an Active subscription, recording the span.
+
+    The span — not the boolean — is what billing consults: every period that
+    overlaps a pause is dropped, so resuming never back-bills suspended months.
+    """
     _require_staff(actor)
-    if sub.stage != Stage.ACTIVE:
-        raise InvalidTransition(sub, sub.stage, "only Active subscriptions can be paused/resumed")
-    if paused and not sub.plan.allow_pause:
-        raise InvalidTransition(sub, sub.stage, "plan does not allow pausing")
-    sub.is_paused = paused
-    sub.save(update_fields=["is_paused", "updated_at"])
-    return sub
+    on = on or date.today()
+    locked = Subscription.objects.select_for_update().get(pk=sub.pk)
+    if locked.stage != Stage.ACTIVE:
+        raise InvalidTransition(locked, locked.stage,
+                                "only Active subscriptions can be paused/resumed")
+    if paused and not locked.plan.allow_pause:
+        raise InvalidTransition(locked, locked.stage, "plan does not allow pausing")
+
+    if paused and not locked.is_paused:
+        PausePeriod.objects.create(subscription=locked, started_on=on)
+    elif not paused and locked.is_paused:
+        span = (
+            locked.pause_periods.filter(ended_on__isnull=True)
+            .order_by("-started_on")
+            .first()
+        )
+        if span is not None:
+            if on < span.started_on:
+                raise ValidationError(
+                    {"on": "A pause cannot end before it started."}
+                )
+            span.ended_on = on
+            span.save(update_fields=["ended_on"])
+
+    locked.is_paused = paused
+    locked.save(update_fields=["is_paused", "updated_at"])
+    return _sync_back(sub, locked)
 
 
 @transaction.atomic
@@ -255,6 +295,8 @@ def auto_close_expired(*, on: date | None = None) -> list[Subscription]:
     for sub in qs:
         sub.closed_reason = "Auto-closed at term expiry"
         sub.stage = Stage.CLOSED
-        sub.save(update_fields=["stage", "closed_reason", "updated_at"])
+        sub.is_paused = False
+        _close_open_pause(sub, on)
+        sub.save(update_fields=["stage", "closed_reason", "is_paused", "updated_at"])
         closed.append(sub)
     return closed

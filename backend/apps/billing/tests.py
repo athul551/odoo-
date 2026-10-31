@@ -11,7 +11,7 @@ from apps.billing.models import (
 )
 from apps.billing.services import (
     cancel_invoice, confirm_invoice, create_discount_rule, mark_printed,
-    run_billing_day, send_invoice,
+    preview_billing_day, run_billing_day, send_invoice,
 )
 from apps.common.timeutils import Frequency
 from apps.customers.models import Customer
@@ -92,13 +92,16 @@ class BillingRunTests(BillingTestCase):
 
     def test_paused_subscriptions_are_skipped_not_cancelled(self):
         sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 6, 1))
-        sub_services.set_paused(sub=sub, actor=self.actor, paused=True)
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=True, on=date(2026, 1, 1))
         run = run_billing_day(on=date(2026, 1, 15), actor=self.actor)
         self.assertEqual(run.billed_count, 0)
-        sub_services.set_paused(sub=sub, actor=self.actor, paused=False)
-        run2 = run_billing_day(on=date(2026, 1, 15), actor=self.actor)
+        # Resume at the next period boundary: the paused period is dropped, not
+        # deferred, so the run bills the current period only (never a backlog).
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=False, on=date(2026, 2, 1))
+        run2 = run_billing_day(on=date(2026, 2, 15), actor=self.actor)
         self.assertEqual(run2.billed_count, 1)
-        self.assertEqual(sub.invoices.filter(period_start=date(2026, 1, 1)).count(), 1)
+        self.assertEqual(sub.invoices.filter(period_start=date(2026, 1, 1)).count(), 0)
+        self.assertEqual(sub.invoices.filter(period_start=date(2026, 2, 1)).count(), 1)
 
     def test_only_non_cancelled_invoices_block_rebilling(self):
         """ADR 0002: cancelling frees the period for the next run."""
@@ -550,3 +553,153 @@ class DiscountAdminOnlyTests(BillingTestCase):
                 scope=DiscountRule.Scope.PRODUCT, applies_from=date(2026, 1, 1),
                 subscription_ids=[sub.id], actor=admin,
             )
+
+
+# ---------------------------------------------------------------------------
+# Regression: the seams the green suite could not see (time boundaries,
+# batch isolation, pause semantics). Each test below failed before the fix.
+# ---------------------------------------------------------------------------
+
+class BillingCompletenessTests(BillingTestCase):
+    def test_unbilled_periods_of_an_ended_term_are_still_billed(self):
+        """
+        The team misses billing day and the term then ends. Every period that
+        fell due inside the term must still be invoiced — silence here is
+        revenue the company never recovers.
+        """
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 4, 1))
+        run = run_billing_day(on=date(2026, 5, 1), actor=self.actor)
+        self.assertEqual(run.billed_count, 3)
+        self.assertEqual(
+            [(i.period_start, i.period_end) for i in sub.invoices.order_by("period_start")],
+            [(date(2026, 1, 1), date(2026, 2, 1)),
+             (date(2026, 2, 1), date(2026, 3, 1)),
+             (date(2026, 3, 1), date(2026, 4, 1))],
+        )
+
+    def test_periods_never_run_past_the_term(self):
+        """Scanning an ended term must not invent a period beyond expiry."""
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 3, 15))
+        run_billing_day(on=date(2026, 6, 1), actor=self.actor)
+        self.assertEqual(
+            [i.period_start for i in sub.invoices.order_by("period_start")],
+            [date(2026, 1, 1), date(2026, 2, 1), date(2026, 3, 1)],
+        )
+
+    def test_preview_reports_missed_periods_of_an_ended_term(self):
+        self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 4, 1))
+        preview = preview_billing_day(on=date(2026, 5, 1))
+        self.assertEqual(preview["invoices"], 3)
+        self.assertEqual(preview["missed_periods"], 3)
+        self.assertTrue(preview["items"][0]["term_ended"])
+        self.assertEqual(Invoice.objects.count(), 0)
+
+    def test_preview_does_not_flag_a_running_term_as_missed(self):
+        self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 6, 1))
+        preview = preview_billing_day(on=date(2026, 2, 15))
+        self.assertEqual(preview["invoices"], 2)
+        self.assertEqual(preview["missed_periods"], 0)
+        self.assertFalse(any(item["term_ended"] for item in preview["items"]))
+
+    def test_a_broken_record_does_not_abort_the_batch(self):
+        healthy_a = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 2, 1))
+        broken = self._subscription_on_broken_frequency()
+        healthy_b = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 2, 1))
+
+        run = run_billing_day(on=date(2026, 1, 5), actor=self.actor)
+
+        self.assertEqual(run.billed_count, 2)
+        self.assertEqual(run.failed_count, 1)
+        self.assertTrue(healthy_a.invoices.exists())
+        self.assertTrue(healthy_b.invoices.exists())
+        self.assertFalse(broken.invoices.exists())
+        failure = run.report["failed"][0]
+        self.assertEqual(failure["subscription"], broken.number)
+        self.assertIn("unknown billing frequency", failure["error"])
+
+    def test_the_billing_run_row_survives_a_failed_record(self):
+        self._subscription_on_broken_frequency()
+        run = run_billing_day(on=date(2026, 1, 5), actor=self.actor)
+        self.assertTrue(BillingRun.objects.filter(pk=run.pk).exists())
+        self.assertIsNotNone(BillingRun.objects.get(pk=run.pk).finished_at)
+
+    def _subscription_on_broken_frequency(self):
+        """A plan whose frequency no period arithmetic understands (bad import)."""
+        plan = Plan.objects.create(
+            product=self.product, name="Hourly", billing_frequency="hourly",
+            price=Decimal("10.00"), minimum_quantity=1,
+            availability_start=date(2025, 1, 1),
+        )
+        sub = sub_services.create_subscription(
+            customer=self.customer, plan=plan, start_date=date(2026, 1, 1),
+            expiry_date=date(2026, 2, 1), actor=self.actor,
+        )
+        sub_services.add_line(sub=sub, product=self.product, quantity=1, actor=self.actor)
+        sub_services.send_quotation(sub=sub, actor=self.actor)
+        sub_services.confirm(sub=sub, actor=self.actor, on=sub.start_date)
+        sub_services.activate(sub=sub, actor=self.actor)
+        return sub
+
+
+class PauseSemanticsTests(BillingTestCase):
+    def test_paused_months_are_not_billed_after_resume(self):
+        """Pause stops billing; it must not defer three months into one day."""
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 7, 1))
+        run_billing_day(on=date(2026, 1, 15), actor=self.actor)
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=True, on=date(2026, 2, 1))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=False, on=date(2026, 5, 1))
+
+        run = run_billing_day(on=date(2026, 6, 15), actor=self.actor)
+
+        self.assertEqual(run.billed_count, 2)
+        self.assertEqual(
+            [i.period_start for i in sub.invoices.order_by("period_start")],
+            [date(2026, 1, 1), date(2026, 5, 1), date(2026, 6, 1)],
+        )
+        self.assertEqual(
+            sub.invoices.filter(period_start__in=[
+                date(2026, 2, 1), date(2026, 3, 1), date(2026, 4, 1),
+            ]).count(),
+            0,
+        )
+
+    def test_a_partially_paused_period_is_not_billed(self):
+        """Any period overlapping a pause is dropped, never pro-rated."""
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 6, 1))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=True, on=date(2026, 2, 10))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=False, on=date(2026, 3, 20))
+
+        run_billing_day(on=date(2026, 4, 15), actor=self.actor)
+
+        self.assertEqual(
+            [i.period_start for i in sub.invoices.order_by("period_start")],
+            [date(2026, 1, 1), date(2026, 4, 1)],
+        )
+
+    def test_a_same_day_pause_loses_nothing(self):
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 3, 1))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=True, on=date(2026, 1, 10))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=False, on=date(2026, 1, 10))
+        run = run_billing_day(on=date(2026, 1, 15), actor=self.actor)
+        self.assertEqual(run.billed_count, 1)
+
+    def test_pause_spans_are_recorded(self):
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 4, 1))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=True, on=date(2026, 2, 1))
+        open_span = sub.pause_periods.get()
+        self.assertEqual(open_span.started_on, date(2026, 2, 1))
+        self.assertIsNone(open_span.ended_on)
+
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=False, on=date(2026, 3, 1))
+        open_span.refresh_from_db()
+        self.assertEqual(open_span.ended_on, date(2026, 3, 1))
+
+    def test_preview_skips_paused_periods(self):
+        sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 5, 1))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=True, on=date(2026, 2, 1))
+        sub_services.set_paused(sub=sub, actor=self.actor, paused=False, on=date(2026, 4, 1))
+        preview = preview_billing_day(on=date(2026, 4, 15))
+        self.assertEqual(
+            [item["period_start"] for item in preview["items"]],
+            ["2026-01-01", "2026-04-01"],
+        )
