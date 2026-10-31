@@ -241,13 +241,21 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
         return Response(SubscriptionSerializer(instance).data)
 
     # -- stage machine -------------------------------------------------
+    def _fresh(self, subscription):
+        """
+        Re-read after a write. The instance came from a prefetched queryset, so
+        its ``pause_periods``/``lines`` caches predate the mutation and would
+        serialise stale history back to the caller.
+        """
+        return self.get_queryset().get(pk=subscription.pk)
+
     def _transition(self, request, service, allowed: tuple[str, ...]):
         subscription = self.get_object()
         body = SubscriptionTransitionSerializer(data=request.data)
         body.is_valid(raise_exception=True)
         kwargs = {k: v for k, v in body.validated_data.items() if k in allowed}
         subscription = service(sub=subscription, actor=request.user, **kwargs)
-        return Response(SubscriptionSerializer(subscription).data)
+        return Response(SubscriptionSerializer(self._fresh(subscription)).data)
 
     @action(detail=True, methods=["post"], url_path="send-quotation")
     def send_quotation(self, request, pk=None):
@@ -274,18 +282,24 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def pause(self, request, pk=None):
         subscription = self.get_object()
+        body = SubscriptionTransitionSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
         subscription = subscription_services.set_paused(
-            sub=subscription, actor=request.user, paused=True
+            sub=subscription, actor=request.user, paused=True,
+            on=body.validated_data.get("on"),
         )
-        return Response(SubscriptionSerializer(subscription).data)
+        return Response(SubscriptionSerializer(self._fresh(subscription)).data)
 
     @action(detail=True, methods=["post"])
     def resume(self, request, pk=None):
         subscription = self.get_object()
+        body = SubscriptionTransitionSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
         subscription = subscription_services.set_paused(
-            sub=subscription, actor=request.user, paused=False
+            sub=subscription, actor=request.user, paused=False,
+            on=body.validated_data.get("on"),
         )
-        return Response(SubscriptionSerializer(subscription).data)
+        return Response(SubscriptionSerializer(self._fresh(subscription)).data)
 
     # -- lines ----------------------------------------------------------
     @action(detail=True, methods=["post"], url_path="lines")
