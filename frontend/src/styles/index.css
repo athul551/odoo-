@@ -4,11 +4,12 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 font-sans text-slate-900 antialiased;
+    @apply bg-ink-950 font-sans text-paper antialiased;
   }
 
   ::selection {
-    @apply bg-accent/30 text-paper;
+    background-color: rgb(122 162 247 / 0.3);
+    color: #ececea;
   }
 }
 
