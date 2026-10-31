@@ -25,7 +25,14 @@ export default function LoginPage() {
       await login(email, password)
       navigate(location.state?.from ?? '/', { replace: true })
     } catch (err) {
-      setError(apiError(err))
+      const status = err.response?.status
+      if (status === 401) {
+        setError('Wrong email or password.')
+      } else if (status === 429) {
+        setError('Too many sign-in attempts. Wait a minute and try again.')
+      } else {
+        setError(apiError(err))
+      }
     } finally {
       setBusy(false)
     }
@@ -68,11 +75,19 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Need an account? Run{' '}
-          <code className="rounded bg-slate-100 px-1 py-0.5">manage.py createsuperuser</code>{' '}
-          in the backend.
-        </p>
+        <div className="mt-4 space-y-1 text-center text-xs text-slate-400">
+          <p>
+            Need an account? Run{' '}
+            <code className="rounded bg-slate-100 px-1 py-0.5">manage.py createsuperuser</code>{' '}
+            in the backend.
+          </p>
+          <p>
+            Forgot the password?{' '}
+            <code className="rounded bg-slate-100 px-1 py-0.5">
+              manage.py changepassword you@example.com
+            </code>
+          </p>
+        </div>
       </div>
     </div>
   )
