@@ -7,7 +7,7 @@ import { Field, FormGrid, Select, TextInput, Textarea } from '../ui/Form'
 import Modal from '../ui/Modal'
 import { EmptyRow, Table, Td, Th, Tr } from '../ui/Table'
 import api, { apiError } from '../../lib/api'
-import { dateOnly } from '../../lib/format'
+import { dateOnly, money } from '../../lib/format'
 
 const EMPTY = {
   name: '',
@@ -16,11 +16,13 @@ const EMPTY = {
   payment_terms_days: 30,
   notes: '',
   active: true,
+  lines: [],
 }
 
 export default function QuotationTemplates() {
   const [rows, setRows] = useState([])
   const [plans, setPlans] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [form, setForm] = useState(null)
@@ -31,12 +33,14 @@ export default function QuotationTemplates() {
     setLoading(true)
     setError('')
     try {
-      const [templates, planList] = await Promise.all([
+      const [templates, planList, productList] = await Promise.all([
         api.get('/quotation-templates/', { params: { page_size: 200 } }),
         api.get('/plans/', { params: { page_size: 200, include_archived: true } }),
+        api.get('/products/', { params: { page_size: 200 } }),
       ])
       setRows(templates.data.results ?? [])
       setPlans(planList.data.results ?? [])
+      setProducts(productList.data.results ?? [])
     } catch (err) {
       setError(apiError(err))
     } finally {
@@ -66,6 +70,11 @@ export default function QuotationTemplates() {
         payment_terms_days: Number(form.payment_terms_days),
         notes: form.notes,
         active: form.active,
+        lines: form.lines.map((line) => ({
+          product: Number(line.product),
+          variant: line.variant ? Number(line.variant) : undefined,
+          quantity: Number(line.quantity),
+        })),
       })
       setForm(null)
       await load()
@@ -86,7 +95,7 @@ export default function QuotationTemplates() {
             size="sm"
             onClick={() => {
               setFormError('')
-              setForm({ ...EMPTY, plan: plans[0]?.id ?? '' })
+              setForm({ ...EMPTY, plan: plans[0]?.id ?? '', lines: [] })
             }}
           >
             New template
@@ -186,6 +195,106 @@ export default function QuotationTemplates() {
                 <Textarea value={form.notes} onChange={set('notes')} />
               </Field>
             </FormGrid>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted">Lines</span>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      lines: [
+                        ...form.lines,
+                        { product: '', variant: '', quantity: 1 },
+                      ],
+                    })
+                  }
+                >
+                  Add line
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {form.lines.length === 0 && (
+                  <p className="text-xs text-faint">
+                    No lines yet — a template without lines is just a plan shortcut.
+                  </p>
+                )}
+                {form.lines.map((line, index) => {
+                  const product = products.find(
+                    (row) => String(row.id) === String(line.product),
+                  )
+                  const variants = product?.variants ?? []
+                  return (
+                    <div
+                      key={index}
+                      className="grid gap-2 sm:grid-cols-[2fr_1.2fr_70px_auto]"
+                    >
+                      <Select
+                        required
+                        value={line.product}
+                        onChange={(event) => {
+                          const lines = form.lines.map((row, i) =>
+                            i === index
+                              ? { ...row, product: event.target.value, variant: '' }
+                              : row,
+                          )
+                          setForm({ ...form, lines })
+                        }}
+                      >
+                        <option value="">Product…</option>
+                        {products.map((row) => (
+                          <option key={row.id} value={row.id}>
+                            {row.name} · {money(row.sales_price)}
+                          </option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={line.variant}
+                        disabled={variants.length === 0}
+                        onChange={(event) => {
+                          const lines = form.lines.map((row, i) =>
+                            i === index ? { ...row, variant: event.target.value } : row,
+                          )
+                          setForm({ ...form, lines })
+                        }}
+                      >
+                        <option value="">{variants.length ? 'No variant' : 'No variants'}</option>
+                        {variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.attribute}: {variant.value} (+{money(variant.price_delta)})
+                          </option>
+                        ))}
+                      </Select>
+                      <TextInput
+                        type="number"
+                        min="1"
+                        value={line.quantity}
+                        onChange={(event) => {
+                          const lines = form.lines.map((row, i) =>
+                            i === index ? { ...row, quantity: event.target.value } : row,
+                          )
+                          setForm({ ...form, lines })
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setForm({
+                            ...form,
+                            lines: form.lines.filter((_, i) => i !== index),
+                          })
+                        }
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </form>
         )}
       </Modal>

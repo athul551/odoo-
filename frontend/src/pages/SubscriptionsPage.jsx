@@ -28,6 +28,7 @@ export default function SubscriptionsPage() {
   const [plans, setPlans] = useState([])
   const [products, setProducts] = useState([])
   const [taxes, setTaxes] = useState([])
+  const [templates, setTemplates] = useState([])
 
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -64,16 +65,18 @@ export default function SubscriptionsPage() {
   useEffect(() => {
     const loadReference = async () => {
       try {
-        const [customerRes, planRes, productRes, taxRes] = await Promise.all([
+        const [customerRes, planRes, productRes, taxRes, templateRes] = await Promise.all([
           api.get('/customers/', { params: { page_size: 200 } }),
           api.get('/plans/', { params: { page_size: 200, selectable: true } }),
           api.get('/products/', { params: { page_size: 200 } }),
           api.get('/tax-rules/', { params: { page_size: 200 } }),
+          api.get('/quotation-templates/', { params: { page_size: 200, active_only: true } }),
         ])
         setCustomers(customerRes.data.results ?? [])
         setPlans(planRes.data.results ?? [])
         setProducts(productRes.data.results ?? [])
         setTaxes(taxRes.data.results ?? [])
+        setTemplates(templateRes.data.results ?? [])
       } catch {
         // The create form simply stays empty if reference data fails.
       }
@@ -91,13 +94,40 @@ export default function SubscriptionsPage() {
       start_date: today,
       expiry_date: nextYear.toISOString().slice(0, 10),
       payment_terms_days: 30,
-      lines: [{ product: '', quantity: 1, tax_rule: '' }],
+      origin_template: '',
+      lines: [{ product: '', variant: '', quantity: 1, tax_rule: '', unit_price: '' }],
     })
     setFormError('')
     setCreating(true)
   }
 
   const planOptions = useMemo(() => plans, [plans])
+
+  const applyTemplate = (templateId) => {
+    if (!templateId) {
+      setForm((current) => ({
+        ...current,
+        origin_template: '',
+        lines: [{ product: '', variant: '', quantity: 1, tax_rule: '', unit_price: '' }],
+      }))
+      return
+    }
+    const template = templates.find((row) => String(row.id) === String(templateId))
+    if (!template) return
+    setForm((current) => ({
+      ...current,
+      origin_template: String(templateId),
+      plan: String(template.plan),
+      payment_terms_days: template.payment_terms_days,
+      lines: template.lines.map((line) => ({
+        product: String(line.product),
+        variant: line.variant ? String(line.variant) : '',
+        quantity: line.quantity,
+        tax_rule: '',
+        unit_price: '',
+      })),
+    }))
+  }
 
   const setLine = (index, key, value) => {
     setForm((current) => {
@@ -119,13 +149,19 @@ export default function SubscriptionsPage() {
         start_date: form.start_date,
         expiry_date: form.expiry_date || undefined,
         payment_terms_days: Number(form.payment_terms_days),
-        lines: form.lines
+        origin_template: form.origin_template ? Number(form.origin_template) : undefined,
+      }
+      if (!form.origin_template) {
+        // With a template the server copies its lines; sending ours too would duplicate them.
+        payload.lines = form.lines
           .filter((line) => line.product)
           .map((line) => ({
             product: Number(line.product),
+            variant: line.variant ? Number(line.variant) : undefined,
             quantity: Number(line.quantity),
             tax_rule: line.tax_rule ? Number(line.tax_rule) : undefined,
-          })),
+            unit_price: line.unit_price || undefined,
+          }))
       }
       const { data } = await api.post('/subscriptions/', payload)
       setCreating(false)
@@ -260,6 +296,19 @@ export default function SubscriptionsPage() {
           <form id="subscription-form" onSubmit={save} className="space-y-4">
             <ErrorBox message={formError} />
             <FormGrid>
+              <Field label="Start from a template" className="sm:col-span-2" hint="Copies the template's plan and lines; optional.">
+                <Select
+                  value={form.origin_template}
+                  onChange={(event) => applyTemplate(event.target.value)}
+                >
+                  <option value="">No template — build the lines below</option>
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} · {template.plan_name} · {template.lines.length} line(s)
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               <Field label="Customer">
                 <Select
                   required
@@ -278,6 +327,7 @@ export default function SubscriptionsPage() {
                 <Select
                   required
                   value={form.plan}
+                  disabled={Boolean(form.origin_template)}
                   onChange={(event) => setForm({ ...form, plan: event.target.value })}
                 >
                   <option value="">Choose a plan…</option>
@@ -317,66 +367,111 @@ export default function SubscriptionsPage() {
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-muted">Lines</span>
-                <Button
-                  size="xs"
-                  variant="secondary"
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      lines: [...form.lines, { product: '', quantity: 1, tax_rule: '' }],
-                    })
-                  }
-                >
-                  Add line
-                </Button>
+                <span className="text-xs font-medium text-muted">
+                  Lines{form.origin_template ? ' (copied from the template)' : ''}
+                </span>
+                {!form.origin_template && (
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        lines: [
+                          ...form.lines,
+                          { product: '', variant: '', quantity: 1, tax_rule: '', unit_price: '' },
+                        ],
+                      })
+                    }
+                  >
+                    Add line
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
-                {form.lines.map((line, index) => (
-                  <div key={index} className="grid gap-2 sm:grid-cols-[2fr_80px_1fr_auto]">
-                    <Select
-                      value={line.product}
-                      onChange={(event) => setLine(index, 'product', event.target.value)}
+                {form.lines.map((line, index) => {
+                  const product = products.find(
+                    (row) => String(row.id) === String(line.product),
+                  )
+                  const variants = product?.variants ?? []
+                  return (
+                    <div
+                      key={index}
+                      className="grid gap-2 sm:grid-cols-[2fr_1.2fr_70px_1fr_1fr_auto]"
                     >
-                      <option value="">Product…</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name} · {money(product.sales_price)}
-                        </option>
-                      ))}
-                    </Select>
-                    <TextInput
-                      type="number"
-                      min="1"
-                      value={line.quantity}
-                      onChange={(event) => setLine(index, 'quantity', event.target.value)}
-                    />
-                    <Select
-                      value={line.tax_rule}
-                      onChange={(event) => setLine(index, 'tax_rule', event.target.value)}
-                    >
-                      <option value="">No tax</option>
-                      {taxes.map((tax) => (
-                        <option key={tax.id} value={tax.id}>
-                          {tax.name} ({Number(tax.rate).toFixed(0)}%)
-                        </option>
-                      ))}
-                    </Select>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          lines: form.lines.filter((_, i) => i !== index),
-                        })
-                      }
-                      disabled={form.lines.length === 1}
-                    >
-                      ✕
-                    </Button>
-                  </div>
-                ))}
+                      <Select
+                        value={line.product}
+                        disabled={Boolean(form.origin_template)}
+                        onChange={(event) => {
+                          setLine(index, 'product', event.target.value)
+                          setLine(index, 'variant', '')
+                        }}
+                      >
+                        <option value="">Product…</option>
+                        {products.map((row) => (
+                          <option key={row.id} value={row.id}>
+                            {row.name} · {money(row.sales_price)}
+                          </option>
+                        ))}
+                      </Select>
+                      <Select
+                        value={line.variant}
+                        disabled={Boolean(form.origin_template) || variants.length === 0}
+                        onChange={(event) => setLine(index, 'variant', event.target.value)}
+                      >
+                        <option value="">{variants.length ? 'No variant' : 'No variants'}</option>
+                        {variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.attribute}: {variant.value} (+{money(variant.price_delta)})
+                          </option>
+                        ))}
+                      </Select>
+                      <TextInput
+                        type="number"
+                        min="1"
+                        value={line.quantity}
+                        disabled={Boolean(form.origin_template)}
+                        onChange={(event) => setLine(index, 'quantity', event.target.value)}
+                      />
+                      <Select
+                        value={line.tax_rule}
+                        disabled={Boolean(form.origin_template)}
+                        onChange={(event) => setLine(index, 'tax_rule', event.target.value)}
+                      >
+                        <option value="">No tax</option>
+                        {taxes.map((tax) => (
+                          <option key={tax.id} value={tax.id}>
+                            {tax.name} ({Number(tax.rate).toFixed(0)}%)
+                          </option>
+                        ))}
+                      </Select>
+                      <TextInput
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="Unit price"
+                        value={line.unit_price}
+                        disabled={Boolean(form.origin_template)}
+                        onChange={(event) => setLine(index, 'unit_price', event.target.value)}
+                      />
+                      {!form.origin_template && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setForm({
+                              ...form,
+                              lines: form.lines.filter((_, i) => i !== index),
+                            })
+                          }
+                          disabled={form.lines.length === 1}
+                        >
+                          ✕
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </form>

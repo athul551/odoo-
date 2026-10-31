@@ -40,7 +40,13 @@ export default function SubscriptionDetailPage() {
   const [closeForm, setCloseForm] = useState({ reason: 'Closed by operator', on: '' })
   const [pauseOpen, setPauseOpen] = useState(false)
   const [pauseForm, setPauseForm] = useState({ on: '' })
-  const [lineForm, setLineForm] = useState({ product: '', quantity: 1, tax_rule: '' })
+  const [lineForm, setLineForm] = useState({
+    product: '',
+    variant: '',
+    quantity: 1,
+    tax_rule: '',
+    unit_price: '',
+  })
   const [termForm, setTermForm] = useState(null)
 
   const load = useCallback(async () => {
@@ -171,11 +177,13 @@ export default function SubscriptionDetailPage() {
     await run('line', () =>
       api.post(`/subscriptions/${id}/lines/`, {
         product: Number(lineForm.product),
+        variant: lineForm.variant ? Number(lineForm.variant) : undefined,
         quantity: Number(lineForm.quantity),
         tax_rule: lineForm.tax_rule ? Number(lineForm.tax_rule) : undefined,
+        unit_price: lineForm.unit_price || undefined,
       }),
     )
-    setLineForm({ product: '', quantity: 1, tax_rule: '' })
+    setLineForm({ product: '', variant: '', quantity: 1, tax_rule: '', unit_price: '' })
   }
 
   const removeLine = async (lineId) => {
@@ -343,16 +351,38 @@ export default function SubscriptionDetailPage() {
         </Table>
 
         {isStaff && canEditLines && (
-          <form onSubmit={addLine} className="mt-4 grid gap-2 sm:grid-cols-[2fr_80px_1fr_auto]">
+          <form
+            onSubmit={addLine}
+            className="mt-4 grid gap-2 sm:grid-cols-[2fr_1.2fr_70px_1fr_1fr_auto]"
+          >
             <Select
               required
               value={lineForm.product}
-              onChange={(event) => setLineForm({ ...lineForm, product: event.target.value })}
+              onChange={(event) =>
+                setLineForm({ ...lineForm, product: event.target.value, variant: '' })
+              }
             >
               <option value="">Product…</option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.name} · {money(product.sales_price)}
+                </option>
+              ))}
+            </Select>
+            <Select
+              value={lineForm.variant}
+              disabled={
+                !products.find((row) => String(row.id) === String(lineForm.product))?.variants
+                  ?.length
+              }
+              onChange={(event) => setLineForm({ ...lineForm, variant: event.target.value })}
+            >
+              <option value="">No variant</option>
+              {(
+                products.find((row) => String(row.id) === String(lineForm.product))?.variants ?? []
+              ).map((variant) => (
+                <option key={variant.id} value={variant.id}>
+                  {variant.attribute}: {variant.value} (+{money(variant.price_delta)})
                 </option>
               ))}
             </Select>
@@ -373,6 +403,14 @@ export default function SubscriptionDetailPage() {
                 </option>
               ))}
             </Select>
+            <TextInput
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Unit price"
+              value={lineForm.unit_price}
+              onChange={(event) => setLineForm({ ...lineForm, unit_price: event.target.value })}
+            />
             <Button type="submit" size="sm" disabled={Boolean(busy)}>
               Add line
             </Button>

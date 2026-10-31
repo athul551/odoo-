@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DarkTable, Empty, Panel, StagePill, Td, Th } from '../../components/portal/ui'
+import Button from '../../components/ui/Button'
 import api, { apiError } from '../../lib/api'
 import { dateOnly, money } from '../../lib/format'
 
@@ -7,6 +8,7 @@ export default function PortalSubscriptionsPage() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -24,6 +26,20 @@ export default function PortalSubscriptionsPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  const togglePause = async (subscription) => {
+    setBusy(String(subscription.id))
+    setError('')
+    try {
+      const action = subscription.is_paused ? 'resume' : 'pause'
+      await api.post(`/subscriptions/${subscription.id}/${action}/`)
+      await load()
+    } catch (err) {
+      setError(apiError(err))
+    } finally {
+      setBusy('')
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -54,12 +70,13 @@ export default function PortalSubscriptionsPage() {
                 <Th>Term</Th>
                 <Th className="text-right">Total</Th>
                 <Th className="text-right">Invoices</Th>
+                <Th />
               </>
             }
           >
             {rows.length === 0 && (
               <Empty
-                colSpan={7}
+                colSpan={8}
                 title="No subscriptions yet"
                 hint="Your account manager will activate the first one."
               />
@@ -80,6 +97,22 @@ export default function PortalSubscriptionsPage() {
                 </Td>
                 <Td className="text-right text-paper">{money(subscription.total)}</Td>
                 <Td className="text-right">{subscription.invoice_count ?? 0}</Td>
+                <Td className="text-right">
+                  {subscription.stage === 'active' && subscription.allow_pause && (
+                    <Button
+                      size="xs"
+                      variant={subscription.is_paused ? 'primary' : 'secondary'}
+                      onClick={() => togglePause(subscription)}
+                      disabled={busy === String(subscription.id)}
+                    >
+                      {busy === String(subscription.id)
+                        ? 'Working…'
+                        : subscription.is_paused
+                          ? 'Resume'
+                          : 'Pause'}
+                    </Button>
+                  )}
+                </Td>
               </tr>
             ))}
           </DarkTable>

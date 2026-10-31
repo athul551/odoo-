@@ -237,6 +237,15 @@ export default function InvoiceBrowser() {
                   {busy === 'cancel' ? 'Cancelling…' : 'Cancel invoice'}
                 </Button>
               )}
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  window.open(`/print/invoice/${detail.id}`, '_blank', 'noopener')
+                  if (!detail.printed_at) act('mark-printed')
+                }}
+              >
+                Print
+              </Button>
               <Button variant="ghost" onClick={() => setDetail(null)}>
                 Close
               </Button>

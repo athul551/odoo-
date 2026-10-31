@@ -13,6 +13,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ReportingPage from './pages/ReportingPage'
+import PrintInvoicePage from './pages/PrintInvoicePage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import SignupPage from './pages/SignupPage'
 import SubscriptionDetailPage from './pages/SubscriptionDetailPage'
@@ -63,6 +64,14 @@ export default function App() {
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/print/invoice/:id"
+        element={
+          <RequireStaff>
+            <PrintInvoicePage />
+          </RequireStaff>
+        }
+      />
 
       <Route
         element={
