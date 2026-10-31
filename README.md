@@ -1,13 +1,16 @@
 # Brightloop Subscription Management System
 
-Brightloop is a full-stack subscription-management foundation. It intentionally contains only the project platform: no business workflows or database models have been implemented yet.
+Brightloop is a full-stack subscription-management system: plans and products, quotations, subscription lifecycles, recurring billing, payments, discounts, reporting — with a REST API, a staff/admin console, a customer portal, and an MCP server that lets AI agents drive the same domain.
 
 ## Architecture
 
 - `frontend/`: React single-page application built with Vite, Tailwind CSS, React Router, Axios, and Recharts.
-- `backend/`: Django + Django REST Framework API, divided into domain apps so each future area owns its models, serializers, services, and endpoints.
+- `backend/`: Django + Django REST Framework API, divided into domain apps so each area owns its models, serializers, services, and endpoints.
 - PostgreSQL is the production and local development database. Docker Compose is included to start it consistently.
 - JWT access/refresh tokens are provided by Django REST Framework Simple JWT. The frontend Axios client adds an access token when one is available.
+- `backend/mcp_server/`: a Model Context Protocol server (stdio + HTTP) exposing the domain as tools for Claude Code, Codex, Cursor or any MCP client.
+
+Domain rules live in `CONTEXT.md`; locked decisions live in `docs/adr/`. The API contract is documented in `docs/API.md`, the agent surface in `docs/MCP.md`.
 
 See the setup instructions below before starting either service.
 
@@ -19,15 +22,18 @@ brightloop/
 │   ├── config/                 # Django project settings and URL entry points
 │   │   └── settings/            # base, development, production settings
 │   ├── apps/
-│   │   ├── common/              # shared health/API utilities
-│   │   ├── accounts/            # JWT authentication and future users/roles
-│   │   ├── products/            # products and subscription plans
-│   │   ├── customers/           # customer records
-│   │   ├── quotations/          # quotations
-│   │   ├── subscriptions/       # subscriptions and discounts
-│   │   ├── billing/             # recurring invoices
-│   │   ├── payments/            # payment collection
-│   │   └── reporting/           # financial reports
+│   │   ├── common/              # shared health/API utilities, numbering, time math
+│   │   ├── accounts/            # email-login users, roles, JWT, password flows
+│   │   ├── api/                 # REST serializers, viewsets, error envelope
+│   │   ├── products/            # products, variants, plans
+│   │   ├── customers/           # customer organizations
+│   │   ├── quotations/          # quotation templates
+│   │   ├── subscriptions/       # subscriptions, lines, stage machine
+│   │   ├── billing/             # tax rules, invoices, discounts, billing runs
+│   │   ├── payments/            # payment ledger
+│   │   └── reporting/           # finance summary and chase lists
+│   ├── mcp_server/              # MCP tools over the same services
+│   ├── bin/brightloop-mcp       # launcher for MCP clients
 │   ├── .env.example
 │   ├── manage.py
 │   └── requirements.txt
@@ -98,3 +104,13 @@ cd backend
 cd frontend
 npm.cmd run build
 ```
+
+## Agents (MCP)
+
+```bash
+cd backend
+.venv/bin/python -m mcp_server --print-tools          # discover tools
+.venv/bin/python -m mcp_server --actor you@example.io  # stdio server
+```
+
+Any MCP client can connect through `backend/bin/brightloop-mcp`; see `docs/MCP.md` for Claude Code, Codex, Cursor and HTTP connector configuration, plus the safety model (role ceiling, read-only mode, dry-run billing).
