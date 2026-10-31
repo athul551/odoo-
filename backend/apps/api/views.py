@@ -105,7 +105,7 @@ class CustomerViewSet(PortalScopedMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(name__icontains=search) | Q(contact_email__icontains=search)
             )
-        return queryset.order_by("name")
+        return queryset.order_by("name", "pk")
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,8 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
         queryset = (
             Subscription.objects.select_related("customer", "plan")
             .prefetch_related(
-                "lines__product", "lines__variant", "lines__tax_rule"
+                "lines__product", "lines__variant", "lines__tax_rule",
+                "pause_periods",
             )
             .annotate(invoice_count=Count("invoices", distinct=True))
         )
@@ -209,7 +210,9 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(number__icontains=search) | Q(customer__name__icontains=search)
             )
-        return queryset
+        # annotate() adds GROUP BY, which drops Meta.ordering: without an
+        # explicit ORDER BY, pages can repeat or skip rows at scale.
+        return queryset.order_by("-created_at", "-pk")
 
     def get_serializer_class(self):
         return SubscriptionCreateSerializer if self.action == "create" else SubscriptionSerializer
@@ -332,7 +335,7 @@ class InvoiceViewSet(PortalScopedMixin, viewsets.ReadOnlyModelViewSet):
             )
         if parse_bool(self.request, "unpaid"):
             queryset = queryset.filter(status=Invoice.Status.CONFIRMED)
-        return queryset
+        return queryset.order_by("-period_start", "-created_at", "-pk")
 
     def get_serializer_class(self):
         return InvoiceListSerializer if self.action == "list" else InvoiceSerializer
@@ -385,7 +388,7 @@ class PaymentViewSet(
         customer_id = parse_int(self.request, "customer")
         if customer_id:
             queryset = queryset.filter(invoice__customer_id=customer_id)
-        return queryset
+        return queryset.order_by("-paid_on", "-pk")
 
     def get_serializer_class(self):
         return PaymentCreateSerializer if self.action == "create" else PaymentSerializer
@@ -442,7 +445,9 @@ class BillingRunViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BillingRunSerializer
 
     def get_queryset(self):
-        return BillingRun.objects.annotate(invoice_count=Count("invoices"))
+        return BillingRun.objects.annotate(invoice_count=Count("invoices")).order_by(
+            "-ran_on", "-started_at", "-pk"
+        )
 
     @action(detail=False, methods=["post"])
     def run(self, request):
