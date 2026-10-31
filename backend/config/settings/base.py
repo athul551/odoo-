@@ -17,7 +17,7 @@ INSTALLED_APPS = [
     "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist",
     "apps.common", "apps.accounts", "apps.products", "apps.customers",
     "apps.quotations", "apps.subscriptions", "apps.billing", "apps.payments",
-    "apps.reporting",
+    "apps.reporting", "apps.api",
 ]
 
 MIDDLEWARE = [
@@ -59,5 +59,19 @@ CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localho
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    # Every error leaves through one envelope: {"errors": {...}, "code": ...}
+    "EXCEPTION_HANDLER": "apps.api.exceptions.api_exception_handler",
+    "DEFAULT_PAGINATION_CLASS": "apps.api.pagination.StandardPagination",
+    "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_RATES": {
+        "login": "10/min",
+        "register": "5/min",
+        "password_reset": "5/min",
+    },
 }
 SIMPLE_JWT = {"ACCESS_TOKEN_LIFETIME": timedelta(minutes=30), "REFRESH_TOKEN_LIFETIME": timedelta(days=7)}
+
+# Password-reset links point at the SPA; the API never renders HTML itself.
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Brightloop <no-reply@brightloop.local>")
