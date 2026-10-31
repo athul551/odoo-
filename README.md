@@ -151,6 +151,27 @@ cd backend
 
 Both accept `--on YYYY-MM-DD` to backfill or replay a date. The billing batch commits each subscription in its own savepoint: one bad record lands in `report.failed` while every healthy invoice survives, and the run row is written before any work so the attempt is always visible.
 
+### Database backup
+
+The database lives in the compose volume `odoo-_postgres_data`; there is no
+second copy unless you make one. Dump it before migrations, restores or demos:
+
+```bash
+./scripts/backup-db.sh                          # backups/brightloop-<timestamp>.sql.gz
+./scripts/restore-db.sh backups/<file>.sql.gz   # into an empty database
+```
+
+Both scripts work with `docker compose` or `docker-compose`, honour
+`DB_SERVICE`, `DB_NAME`, `DB_USER` and `BACKUP_DIR`, and the dumps are plain
+SQL (gzip), so they restore on any Postgres 16. `backups/` is gitignored: keep
+dumps out of the repository and copy them somewhere off this machine.
+
+A nightly line in the user crontab is enough for a dev box:
+
+```cron
+0 2 * * * cd "/path/to/odoo-" && ./scripts/backup-db.sh >> backups/cron.log 2>&1
+```
+
 ### Production notes
 
 - Set `REDIS_URL` so throttle counters (login, writes) are shared across gunicorn workers; without it each worker keeps its own LocMem counter and the configured limits multiply by the worker count.

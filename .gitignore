@@ -14,3 +14,6 @@ frontend/.env
 .vscode/
 .superdesign/tmp/
 .superdesign/resume.json
+
+# Database dumps (local only)
+backups/
