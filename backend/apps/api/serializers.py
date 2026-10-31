@@ -326,6 +326,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
     )
     stage_display = serializers.CharField(source="get_stage_display", read_only=True)
     pause_periods = PausePeriodSerializer(many=True, read_only=True)
+    allow_pause = serializers.BooleanField(source="plan.allow_pause", read_only=True)
     lines = SubscriptionLineSerializer(many=True, read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     invoice_count = serializers.IntegerField(read_only=True, required=False)
@@ -337,7 +338,8 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "billing_frequency", "stage", "stage_display", "start_date",
             "expiry_date", "validity_until", "payment_terms_days", "is_paused",
             "is_expired", "closed_reason", "subtotal", "tax_total", "total",
-            "invoice_count", "pause_periods", "lines", "created_at", "updated_at",
+            "invoice_count", "pause_periods", "allow_pause", "lines", "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 

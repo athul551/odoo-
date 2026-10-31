@@ -240,3 +240,90 @@ class SubscriptionLifecycleTests(ApiTestCase):
         }, format="json").json()
         self.assertNotEqual(second["number"], self.sub["number"])
         self.assertEqual(Subscription.objects.count(), 2)
+
+
+class CustomerSelfServiceTests(ApiTestCase):
+    """
+    The portal lets a customer pause/resume their own Active subscription when
+    the plan allows it. Everything else stays with Brightloop staff.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from apps.subscriptions import services
+
+        self.services = services
+        self.product = self.make_product()
+        self.plan = self.make_plan(product=self.product, name="Portal plan")
+        self.plan.allow_pause = True
+        self.plan.save(update_fields=["allow_pause"])
+        self.sub = services.create_subscription(
+            customer=self.customer, plan=self.plan,
+            start_date=date(2026, 1, 1), expiry_date=date(2027, 1, 1),
+            actor=self.staff,
+        )
+        services.add_line(sub=self.sub, product=self.product, actor=self.staff)
+        services.send_quotation(sub=self.sub, actor=self.staff)
+        services.confirm(sub=self.sub, actor=self.staff)
+        services.activate(sub=self.sub, actor=self.staff)
+
+    def act(self, action, sub=None, **body):
+        subscription = sub or self.sub
+        return self.client.post(
+            f"/api/subscriptions/{subscription.id}/{action}/", body, format="json"
+        )
+
+    def test_customer_pauses_and_resumes_their_own_subscription(self):
+        self.auth(self.customer_user)
+        paused = self.act("pause", on="2026-01-10")
+        self.assertEqual(paused.status_code, 200, paused.content)
+        self.assertTrue(paused.json()["is_paused"])
+        self.assertEqual(len(paused.json()["pause_periods"]), 1)
+        self.assertTrue(paused.json()["allow_pause"])
+
+        resumed = self.act("resume", on="2026-01-20")
+        self.assertEqual(resumed.status_code, 200, resumed.content)
+        self.assertFalse(resumed.json()["is_paused"])
+        self.assertEqual(
+            resumed.json()["pause_periods"][0]["ended_on"], "2026-01-20"
+        )
+
+    def test_customer_cannot_touch_another_customers_subscription(self):
+        from apps.subscriptions import services
+
+        other_plan = self.make_plan(name="Other plan")
+        other_plan.allow_pause = True
+        other_plan.save(update_fields=["allow_pause"])
+        other = services.create_subscription(
+            customer=self.other_customer, plan=other_plan,
+            start_date=date(2026, 1, 1), expiry_date=date(2027, 1, 1),
+            actor=self.staff,
+        )
+        services.add_line(sub=other, product=self.product, actor=self.staff)
+        services.send_quotation(sub=other, actor=self.staff)
+        services.confirm(sub=other, actor=self.staff)
+        services.activate(sub=other, actor=self.staff)
+
+        self.auth(self.customer_user)
+        self.assertEqual(self.act("pause", sub=other).status_code, 404)
+
+    def test_pause_is_refused_when_the_plan_forbids_it(self):
+        self.plan.allow_pause = False
+        self.plan.save(update_fields=["allow_pause"])
+        self.auth(self.customer_user)
+        response = self.act("pause")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["code"], "invalid_transition")
+
+    def test_customer_cannot_close_renew_or_edit_lines(self):
+        self.auth(self.customer_user)
+        self.assertEqual(self.act("close", reason="I want out").status_code, 403)
+        self.assertEqual(self.act("renew").status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                f"/api/subscriptions/{self.sub.id}/lines/",
+                {"product": self.product.id, "quantity": 1},
+                format="json",
+            ).status_code,
+            403,
+        )

@@ -105,7 +105,7 @@ Plan behaviors (`auto_close_on_expiry`, `allow_early_close`, `allow_pause`, `all
 `GET|POST /subscriptions/`, `GET|PATCH|DELETE /subscriptions/{id}/`
 Filters: `?stage=`, `?customer=`, `?plan=`, `?q=`.
 PATCH accepts only `start_date`, `expiry_date`, `payment_terms_days` — stages move through actions.
-Each subscription serialises its `pause_periods` (`{id, started_on, ended_on, reason}`; `ended_on: null` means still paused).
+Each subscription serialises its `pause_periods` (`{id, started_on, ended_on, reason}`; `ended_on: null` means still paused) and `allow_pause` (the plan's switch), so the portal only offers the action when it is legal.
 
 Stage actions (`POST /subscriptions/{id}/…`):
 
@@ -116,7 +116,7 @@ Stage actions (`POST /subscriptions/{id}/…`):
 | `activate/` | Confirmed → Active | optional `start_date`, `expiry_date` |
 | `close/` | any open → Closed | `{reason}`; early close may be refused by the plan |
 | `renew/` | Active stays Active | extends one calendar-safe period; reopens an expired Closed term |
-| `pause/` / `resume/` | flag on Active | records a pause span; billing drops overlapping periods |
+| `pause/` / `resume/` | flag on Active | records a pause span; billing drops overlapping periods. Staff/admin may pause any Active subscription; a **customer may pause/resume their own** when the plan allows it |
 
 Line editing (Draft/Quotation only):
 
@@ -133,7 +133,7 @@ DELETE /subscriptions/{id}/lines/{line_id}/
 Filters: `?status=`, `?customer=`, `?subscription=`, `?overdue=true`, `?unpaid=true`.
 The list shape is light (no lines/payments); the detail includes lines, payments and applied discounts.
 
-Actions: `POST /invoices/{id}/confirm/` (issues it, sets `due_date` from payment terms), `send/`, `mark-printed/`, `cancel/` (`{reason}`).
+Actions: `POST /invoices/{id}/confirm/` (issues it, sets `due_date` from payment terms), `send/` (marks it sent **and emails the customer's contact email** through Django's email backend — configure SMTP in production), `mark-printed/`, `cancel/` (`{reason}`). The console prints through a dedicated printable view.
 Cancelling a confirmed/paid invoice with payments attached is refused — remove the payments first. The freed period rebills in the next run.
 
 ### Payments

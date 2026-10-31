@@ -703,3 +703,35 @@ class PauseSemanticsTests(BillingTestCase):
             [item["period_start"] for item in preview["items"]],
             ["2026-01-01", "2026-04-01"],
         )
+
+
+class InvoiceEmailTests(BillingTestCase):
+    """`send` is a real delivery, not only a timestamp."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core import mail
+
+        self.mail = mail
+        self.sub = self.active_sub(start=date(2026, 1, 1), expiry=date(2026, 2, 1))
+        run_billing_day(on=date(2026, 1, 5), actor=self.actor)
+        self.invoice = self.sub.invoices.get()
+        confirm_invoice(invoice=self.invoice, actor=self.actor)
+
+    def test_send_emails_the_customer_billing_contact(self):
+        self.customer.contact_email = "billing@acme.test"
+        self.customer.save(update_fields=["contact_email"])
+
+        sent = send_invoice(invoice=self.invoice, actor=self.actor)
+
+        self.assertIsNotNone(sent.sent_at)
+        self.assertEqual(len(self.mail.outbox), 1)
+        message = self.mail.outbox[0]
+        self.assertEqual(message.to, ["billing@acme.test"])
+        self.assertIn(self.invoice.number, message.subject)
+        self.assertIn("amount due", message.body)
+
+    def test_send_without_a_contact_email_still_marks_the_invoice_sent(self):
+        sent = send_invoice(invoice=self.invoice, actor=self.actor)
+        self.assertIsNotNone(sent.sent_at)
+        self.assertEqual(len(self.mail.outbox), 0)

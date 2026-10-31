@@ -19,7 +19,9 @@ run_billing_day(on): idempotent, isolated batch.
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
@@ -440,7 +442,38 @@ def send_invoice(*, invoice: Invoice, actor) -> Invoice:
         raise ValidationError({"status": "Only Confirmed invoices can be sent."})
     locked.sent_at = timezone.now()
     locked.save(update_fields=["sent_at", "updated_at"])
+    _email_invoice(locked)
     return _sync_back(invoice, locked)
+
+
+def _email_invoice(invoice: Invoice) -> None:
+    """
+    Deliver the invoice to the customer's billing contact.
+
+    A customer without a contact email still gets the invoice marked sent (the
+    ledger is the truth); the delivery step simply has nowhere to go. Email is
+    sent through Django's configured backend, so tests capture it in locmem and
+    a deployment needs SMTP configured.
+    """
+    recipient = (invoice.customer.contact_email or "").strip()
+    if not recipient:
+        return
+    due = invoice.due_date.isoformat() if invoice.due_date else "on receipt"
+    send_mail(
+        subject=f"Invoice {invoice.number} from Brightloop",
+        message=(
+            f"Hello {invoice.customer.name},\n\n"
+            f"Invoice {invoice.number} covers {invoice.period_start} to "
+            f"{invoice.period_end}.\n"
+            f"Total: {invoice.total} — amount due: {invoice.amount_due}.\n"
+            f"Due date: {due}.\n\n"
+            "You can see this invoice and its payment status in the Brightloop portal.\n\n"
+            "Thank you,\nBrightloop"
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[recipient],
+        fail_silently=False,
+    )
 
 
 @transaction.atomic

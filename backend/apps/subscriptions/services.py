@@ -247,6 +247,24 @@ def set_paused(*, sub, actor, paused: bool, on: date | None = None) -> Subscript
     overlaps a pause is dropped, so resuming never back-bills suspended months.
     """
     _require_staff(actor)
+    return _apply_pause(sub=sub, actor=actor, paused=paused, on=on)
+
+
+@transaction.atomic
+def customer_set_paused(*, sub, actor, paused: bool, on: date | None = None) -> Subscription:
+    """
+    Portal self-service: a customer may pause/resume *their own* subscription.
+
+    Same span semantics as the staff path, but authority is ownership plus the
+    plan's allow_pause switch — never a role. Anything else (close, renew,
+    lines) stays with Brightloop staff.
+    """
+    if not getattr(actor, "customer_id", None) or actor.customer_id != sub.customer_id:
+        raise PermissionDenied("You can only manage your own subscriptions.")
+    return _apply_pause(sub=sub, actor=actor, paused=paused, on=on)
+
+
+def _apply_pause(*, sub, actor, paused: bool, on: date | None) -> Subscription:
     on = on or date.today()
     locked = Subscription.objects.select_for_update().get(pk=sub.pk)
     if locked.stage != Stage.ACTIVE:

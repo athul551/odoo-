@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count, Q
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.billing import services as billing_services
@@ -214,6 +215,13 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
         # explicit ORDER BY, pages can repeat or skip rows at scale.
         return queryset.order_by("-created_at", "-pk")
 
+    def get_permissions(self):
+        # Pause/resume is the one self-service move a customer owns. Ownership
+        # is enforced by the scoped queryset (404) and the service, not a role.
+        if self.action in ("pause", "resume"):
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
     def get_serializer_class(self):
         return SubscriptionCreateSerializer if self.action == "create" else SubscriptionSerializer
 
@@ -284,7 +292,12 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
         subscription = self.get_object()
         body = SubscriptionTransitionSerializer(data=request.data)
         body.is_valid(raise_exception=True)
-        subscription = subscription_services.set_paused(
+        service = (
+            subscription_services.set_paused
+            if getattr(request.user, "is_member_of_staff", False)
+            else subscription_services.customer_set_paused
+        )
+        subscription = service(
             sub=subscription, actor=request.user, paused=True,
             on=body.validated_data.get("on"),
         )
@@ -295,7 +308,12 @@ class SubscriptionViewSet(PortalScopedMixin, viewsets.ModelViewSet):
         subscription = self.get_object()
         body = SubscriptionTransitionSerializer(data=request.data)
         body.is_valid(raise_exception=True)
-        subscription = subscription_services.set_paused(
+        service = (
+            subscription_services.set_paused
+            if getattr(request.user, "is_member_of_staff", False)
+            else subscription_services.customer_set_paused
+        )
+        subscription = service(
             sub=subscription, actor=request.user, paused=False,
             on=body.validated_data.get("on"),
         )
