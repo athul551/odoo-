@@ -50,9 +50,15 @@ def mrr_expression(alias: str = "mrr_share") -> ExpressionWrapper:
     )
 
 
-def _active_subs_qs(*, customer_id=None):
+def _active_subs_qs(*, customer_id=None, on: date | None = None):
+    """
+    Revenue-bearing terms: Active, not paused, and still inside their term.
+    Nothing closes an expired Active automatically for every plan, so without
+    the expiry bound yesterday's contracts inflate MRR/ARR forever.
+    """
+    on = on or date.today()
     qs = Subscription.objects.filter(
-        stage=Subscription.Stage.ACTIVE, is_paused=False
+        stage=Subscription.Stage.ACTIVE, is_paused=False, expiry_date__gt=on
     ).exclude(subtotal=ZERO)
     if customer_id:
         qs = qs.filter(customer_id=customer_id)
@@ -87,7 +93,7 @@ def summary(*, start: date | None = None, end: date | None = None,
     if start > end:
         raise ValidationError({"start": "Window start cannot be after window end."})
 
-    subs = _active_subs_qs(customer_id=customer_id)
+    subs = _active_subs_qs(customer_id=customer_id, on=on)
     agg = subs.aggregate(mrr=Sum(mrr_expression()) or ZERO)
     mrr = (agg["mrr"] or ZERO).quantize(Decimal("0.01"))
 
@@ -96,7 +102,7 @@ def summary(*, start: date | None = None, end: date | None = None,
 
     active_count = sum(by_frequency.values())
     paused_count = Subscription.objects.filter(
-        stage=Subscription.Stage.ACTIVE, is_paused=True,
+        stage=Subscription.Stage.ACTIVE, is_paused=True, expiry_date__gt=on,
         **({"customer_id": customer_id} if customer_id else {}),
     ).count()
 

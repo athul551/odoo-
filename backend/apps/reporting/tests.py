@@ -313,3 +313,32 @@ class ScalePerformanceTests(ReportingTestCase):
         self.assertGreater(total, 600)
         # select_related keeps it to two queries (count + slice), no per-row fetches
         self.assertLessEqual(len(ctx.captured_queries), 4)
+
+
+class ExpiredTermTests(ReportingTestCase):
+    """MRR must not count contracts whose term has already ended."""
+
+    def test_ended_terms_are_not_active_and_carry_no_mrr(self):
+        monthly = self.plan("m", Frequency.MONTHLY)
+        live = self.sub(number="S1", plan=monthly, subtotal="100.00")
+        ended = self.sub(number="S2", plan=monthly, subtotal="200.00")
+        # `live` keeps its 2027 expiry; `ended` lapsed before the as-of date.
+        self.assertTrue(live.pk)
+        Subscription.objects.filter(pk=ended.pk).update(expiry_date=date(2026, 2, 1))
+
+        out = services.summary(on=date(2026, 10, 31))
+
+        self.assertEqual(out["active_subscriptions"], 1)
+        self.assertEqual(Decimal(out["mrr"]), Decimal("100.00"))
+        self.assertEqual(Decimal(out["arr"]), Decimal("1200.00"))
+
+    def test_paused_count_ignores_ended_terms(self):
+        monthly = self.plan("m", Frequency.MONTHLY)
+        paused_live = self.sub(number="S1", plan=monthly, subtotal="100.00", paused=True)
+        paused_ended = self.sub(number="S2", plan=monthly, subtotal="100.00", paused=True)
+        Subscription.objects.filter(pk=paused_ended.pk).update(expiry_date=date(2026, 2, 1))
+
+        out = services.summary(on=date(2026, 10, 31))
+
+        self.assertEqual(out["paused_subscriptions"], 1)
+        self.assertTrue(paused_live.pk)
