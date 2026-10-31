@@ -50,10 +50,11 @@ def _close_open_pause(sub: Subscription, on: date) -> None:
         span.save(update_fields=["ended_on"])
 
 
-def _transition(sub: Subscription, target: str, *, reason: str = "") -> None:
+def _transition(sub: Subscription, target: str, *, extra_fields=()) -> None:
+    """Persist the stage move plus any field the caller changed alongside it."""
     _check_transition(sub, target)
     sub.stage = target
-    sub.save(update_fields=["stage", "updated_at"])
+    sub.save(update_fields=["stage", "updated_at", *extra_fields])
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +203,7 @@ def close(*, sub, actor, reason: str = "Closed by operator",
     sub.closed_reason = reason
     sub.is_paused = False
     _close_open_pause(sub, on)
-    _transition(sub, Stage.CLOSED)
+    _transition(sub, Stage.CLOSED, extra_fields=("closed_reason", "is_paused"))
     return sub
 
 

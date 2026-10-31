@@ -84,6 +84,15 @@ class StageMachineTests(TestCase):
         services.close(sub=sub, actor=self.fx.staff)
         self.assertEqual(sub.stage, Subscription.Stage.CLOSED)
 
+    def test_close_persists_its_reason_to_the_database(self):
+        """The reason must survive a re-read, not just live on the instance."""
+        sub = self.fx.subscription(Subscription.Stage.ACTIVE)
+        services.close(sub=sub, actor=self.fx.staff, reason="Budget cut")
+        stored = Subscription.objects.get(pk=sub.pk)
+        self.assertEqual(stored.stage, Subscription.Stage.CLOSED)
+        self.assertEqual(stored.closed_reason, "Budget cut")
+        self.assertFalse(stored.is_paused)
+
     def test_no_skipping_stages(self):
         sub = self.fx.subscription()  # draft
         for fn in (services.confirm, services.activate):

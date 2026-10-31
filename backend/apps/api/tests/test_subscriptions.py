@@ -146,6 +146,17 @@ class SubscriptionLifecycleTests(ApiTestCase):
         resumed = self.act("resume")
         self.assertFalse(resumed.json()["is_paused"])
 
+    def test_pause_accepts_a_business_date_and_records_the_span(self):
+        self.act("send-quotation")
+        self.act("confirm")
+        self.act("activate")
+        paused = self.act("pause", on="2026-01-10").json()
+        self.assertEqual(len(paused["pause_periods"]), 1)
+        self.assertEqual(paused["pause_periods"][0]["started_on"], "2026-01-10")
+
+        resumed = self.act("resume", on="2026-01-20").json()
+        self.assertEqual(resumed["pause_periods"][0]["ended_on"], "2026-01-20")
+
     def test_renew_extends_the_term_by_one_period(self):
         self.act("send-quotation")
         self.act("confirm")
