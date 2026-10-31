@@ -3,5 +3,16 @@
 @tailwind utilities;
 
 @layer base {
-  body { @apply bg-slate-50 text-slate-900 antialiased; }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-base text-primary antialiased;
+  }
+  ::selection {
+    @apply bg-accent/30 text-primary;
+  }
+  code {
+    @apply font-mono text-[0.9em];
+  }
 }

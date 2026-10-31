@@ -7,21 +7,24 @@ import { ErrorBox, Loading } from '../components/ui/Feedback'
 import { Table, Td, Th, Tr } from '../components/ui/Table'
 import api, { apiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
-import { dateTime, money, titleize } from '../lib/format'
+import { money, titleize } from '../lib/format'
 
-function Kpi({ label, value, hint, tone = 'text-slate-900' }) {
+function Kpi({ label, value, hint }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tone}`}>{value}</p>
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    <div className="rounded-xl border border-line bg-panel px-6 py-5">
+      <p className="text-xs font-medium uppercase tracking-widest text-muted">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-primary">{value}</p>
+      {hint && <p className="mt-1.5 text-xs text-muted">{hint}</p>}
     </div>
   )
 }
 
 export default function DashboardPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, isStaff } = useAuth()
   const [summary, setSummary] = useState(null)
+  const [chase, setChase] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [previewing, setPreviewing] = useState(false)
   const [ops, setOps] = useState(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -34,6 +37,12 @@ export default function DashboardPage() {
     try {
       const { data } = await api.get('/reporting/summary/')
       setSummary(data)
+      if (isStaff) {
+        api
+          .get('/reporting/chase/', { params: { kind: 'overdue', page_size: 5 } })
+          .then(({ data: chaseData }) => setChase(chaseData))
+          .catch(() => setChase(null))
+      }
       if (isAdmin) {
         try {
           const overview = await api.get('/ops/overview/')
@@ -47,11 +56,24 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }, [isAdmin])
+  }, [isAdmin, isStaff])
 
   useEffect(() => {
     load()
   }, [load])
+
+  const runPreview = async () => {
+    setPreviewing(true)
+    setError('')
+    try {
+      const { data } = await api.post('/billing-runs/run/', { dry_run: true })
+      setPreview(data)
+    } catch (err) {
+      setError(apiError(err))
+    } finally {
+      setPreviewing(false)
+    }
+  }
 
   const seed = async () => {
     setSeeding(true)
@@ -74,18 +96,22 @@ export default function DashboardPage() {
 
   if (loading && !summary) return <Loading label="Loading dashboard…" />
 
-  const counts = ops?.counts
-
   return (
-    <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-16">
+      {/* overview title */}
+      <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            The numbers the finance lead reads, computed from the same API the console calls.
+          <h1 className="text-5xl font-light tracking-tight text-primary">Operations</h1>
+          <p className="mt-2 text-sm text-secondary">
+            {summary && (
+              <>
+                Month-end view {summary.window.start} → {summary.window.end} · as of{' '}
+                {summary.window.as_of}
+              </>
+            )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={load} disabled={loading}>
             Refresh
           </Button>
@@ -98,51 +124,55 @@ export default function DashboardPage() {
       </header>
 
       <ErrorBox message={error} onRetry={load} />
-      {notice && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {notice}
-        </div>
-      )}
+      {notice && <div className="rounded-lg border border-ok/25 bg-ok/10 px-4 py-3 text-sm text-ok">{notice}</div>}
 
       {summary && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {/* KPI band */}
+          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi label="MRR" value={money(summary.mrr)} hint={`ARR ${money(summary.arr)}`} />
             <Kpi
               label="Active subscriptions"
               value={summary.active_subscriptions}
-              hint={`${summary.paused_subscriptions} paused`}
+              hint={`${summary.paused_subscriptions} paused · ${titleize(
+                summary.active_by_frequency ? Object.keys(summary.active_by_frequency)[0] ?? '' : '',
+              )}`}
             />
             <Kpi
-              label="Invoiced this window"
+              label="Invoiced"
               value={money(summary.invoiced_total)}
               hint={`${summary.window.start} → ${summary.window.end}`}
             />
             <Kpi
               label="Collected"
               value={money(summary.collected_total)}
-              hint={`Outstanding ${money(summary.outstanding.amount)} · Overdue ${money(summary.overdue.amount)}`}
+              hint={
+                summary.overdue.count
+                  ? `${summary.overdue.count} overdue · ${money(summary.overdue.amount)}`
+                  : 'Nothing overdue'
+              }
             />
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Card title="Revenue mix" subtitle="Active subscriptions normalised to a month">
+          {/* 8/4 split: revenue mix + overdue chase */}
+          <div className="grid gap-8 xl:grid-cols-3">
+            <Card className="xl:col-span-2" title="Revenue mix" subtitle="Active subscriptions normalised to a month">
               {Object.keys(summary.active_by_frequency).length === 0 ? (
-                <p className="text-sm text-slate-400">No active subscriptions yet.</p>
+                <p className="text-sm text-muted">No active subscriptions yet.</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {Object.entries(summary.active_by_frequency).map(([frequency, count]) => {
                     const total = summary.active_subscriptions || 1
                     const width = Math.round((count / total) * 100)
                     return (
                       <div key={frequency}>
-                        <div className="flex items-center justify-between text-xs text-slate-500">
+                        <div className="flex items-center justify-between text-xs text-secondary">
                           <span className="capitalize">{titleize(frequency)}</span>
                           <span>{count}</span>
                         </div>
-                        <div className="mt-1 h-2 rounded-full bg-slate-100">
+                        <div className="mt-1.5 h-2 rounded-full bg-raised">
                           <div
-                            className="h-2 rounded-full bg-indigo-500"
+                            className="h-2 rounded-full bg-accent"
                             style={{ width: `${width}%` }}
                           />
                         </div>
@@ -151,113 +181,190 @@ export default function DashboardPage() {
                   })}
                 </div>
               )}
+
+              {summary && (
+                <dl className="mt-8 grid grid-cols-2 gap-4 border-t border-line pt-6 text-sm sm:grid-cols-4">
+                  <div>
+                    <dt className="text-xs text-muted">Outstanding</dt>
+                    <dd className="mt-1 font-medium text-primary">{money(summary.outstanding.amount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted">Overdue</dt>
+                    <dd className="mt-1 font-medium text-bad">{money(summary.overdue.amount)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted">Invoiced</dt>
+                    <dd className="mt-1 font-medium text-primary">{money(summary.invoiced_total)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted">Collected</dt>
+                    <dd className="mt-1 font-medium text-ok">{money(summary.collected_total)}</dd>
+                  </div>
+                </dl>
+              )}
             </Card>
 
+            {isStaff && (
+              <Card
+                title="Overdue chase"
+                subtitle="Past due date, oldest first"
+                actions={
+                  <Link to="/billing" className="text-xs font-medium text-accent hover:text-accent-hover">
+                    Billing →
+                  </Link>
+                }
+                bodyClassName=""
+              >
+                {chase && chase.results?.length > 0 ? (
+                  <Table>
+                    <thead>
+                      <tr>
+                        <Th>Invoice</Th>
+                        <Th>Due</Th>
+                        <Th className="text-right">Due now</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chase.results.slice(0, 5).map((invoice) => (
+                        <Tr key={invoice.number}>
+                          <Td>
+                            <p className="font-mono text-xs text-primary">{invoice.number}</p>
+                            <p className="mt-0.5 text-xs text-muted">{invoice.customer}</p>
+                          </Td>
+                          <Td>
+                            <span className="text-xs text-bad">{invoice.due_date}</span>
+                          </Td>
+                          <Td className="text-right text-primary">{invoice.amount_due}</Td>
+                        </Tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted">
+                    Nothing overdue — the collections list is empty.
+                  </p>
+                )}
+                {chase && chase.count > chase.results?.length && (
+                  <p className="mt-3 text-xs text-muted">
+                    and {chase.count - chase.results.length} more ·{' '}
+                    <Link to="/billing" className="text-accent hover:text-accent-hover">
+                      all in Billing
+                    </Link>
+                  </p>
+                )}
+              </Card>
+            )}
+          </div>
+
+          {/* billing-day console */}
+          {isStaff && (
+            <section className="rounded-xl border border-line bg-panel p-8">
+              <div className="flex flex-wrap items-center justify-between gap-6">
+                <div>
+                  <h2 className="text-2xl font-medium text-primary">Billing day</h2>
+                  <p className="mt-1.5 text-sm text-secondary">
+                    Preview what tonight's run would invoice — nothing is written.
+                  </p>
+                </div>
+                <Button onClick={runPreview} disabled={previewing} size="lg">
+                  {previewing ? 'Previewing…' : 'Preview billing day'}
+                </Button>
+              </div>
+
+              {preview && (
+                <div className="mt-6 border-t border-line pt-6">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge tone="indigo">
+                      {preview.invoices} invoice(s) for {preview.subscriptions} subscription(s)
+                    </Badge>
+                    <Badge tone={preview.missed_periods ? 'amber' : 'slate'}>
+                      {preview.missed_periods} missed period(s) of ended terms
+                    </Badge>
+                    {preview.problems?.length > 0 && (
+                      <Badge tone="rose">{preview.problems.length} problem record(s)</Badge>
+                    )}
+                    <span className="text-xs text-muted">on {preview.on}</span>
+                  </div>
+
+                  {preview.items?.length > 0 && (
+                    <Table className="mt-4">
+                      <thead>
+                        <tr>
+                          <Th>Subscription</Th>
+                          <Th>Customer</Th>
+                          <Th>Period</Th>
+                          <Th className="text-right">Estimated subtotal</Th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.items.slice(0, 6).map((item) => (
+                          <Tr key={`${item.subscription}-${item.period_start}`}>
+                            <Td className="font-mono text-xs text-primary">{item.subscription}</Td>
+                            <Td>{item.customer}</Td>
+                            <Td className="text-xs">
+                              {item.period_start} → {item.period_end}
+                            </Td>
+                            <Td className="text-right text-primary">{item.estimated_subtotal}</Td>
+                          </Tr>
+                        ))}
+                      </tbody>
+                    </Table>
+                  )}
+
+                  {preview.truncated && (
+                    <p className="mt-3 text-xs text-muted">
+                      List truncated — run the full console under Billing for everything.
+                    </p>
+                  )}
+                  <p className="mt-4 text-xs text-muted">
+                    To execute for real,{' '}
+                    <Link to="/billing" className="text-accent hover:text-accent-hover">
+                      open the Billing console
+                    </Link>
+                    .
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ops snapshot (admin) */}
+          {ops && (
             <Card
-              title="Database"
-              subtitle={ops ? `${ops.database.version}` : 'Admin view'}
+              title="System"
+              subtitle={ops.database?.version ? `PostgreSQL ${ops.database.version}` : 'Admin view'}
               actions={
                 isAdmin && (
-                  <Link
-                    to="/database"
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
-                  >
+                  <Link to="/database" className="text-xs font-medium text-accent hover:text-accent-hover">
                     Open console →
                   </Link>
                 )
               }
             >
-              {ops ? (
-                <dl className="grid grid-cols-2 gap-3 text-sm">
+              <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+                <div>
+                  <dt className="text-xs text-muted">Migrations applied</dt>
+                  <dd className="mt-1 font-medium text-primary">{ops.migrations.applied}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted">Pending</dt>
+                  <dd className="mt-1">
+                    <Badge tone={ops.migrations.pending ? 'amber' : 'ok'}>{ops.migrations.pending}</Badge>
+                  </dd>
+                </div>
+                {ops.counts?.subscriptions != null && (
                   <div>
-                    <dt className="text-xs text-slate-400">Database</dt>
-                    <dd className="truncate font-medium text-slate-700">{ops.database.name}</dd>
+                    <dt className="text-xs text-muted">Subscriptions</dt>
+                    <dd className="mt-1 font-medium text-primary">{ops.counts.subscriptions}</dd>
                   </div>
+                )}
+                {ops.counts?.invoices != null && (
                   <div>
-                    <dt className="text-xs text-slate-400">Host</dt>
-                    <dd className="truncate font-medium text-slate-700">{ops.database.host}</dd>
+                    <dt className="text-xs text-muted">Invoices</dt>
+                    <dd className="mt-1 font-medium text-primary">{ops.counts.invoices}</dd>
                   </div>
-                  <div>
-                    <dt className="text-xs text-slate-400">Migrations applied</dt>
-                    <dd className="font-medium text-slate-700">{ops.migrations.applied}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-slate-400">Pending migrations</dt>
-                    <dd>
-                      <Badge tone={ops.migrations.pending ? 'amber' : 'emerald'}>
-                        {ops.migrations.pending}
-                      </Badge>
-                    </dd>
-                  </div>
-                  {counts && (
-                    <>
-                      <div>
-                        <dt className="text-xs text-slate-400">Subscriptions</dt>
-                        <dd className="font-medium text-slate-700">{counts.subscriptions}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-slate-400">Invoices</dt>
-                        <dd className="font-medium text-slate-700">{counts.invoices}</dd>
-                      </div>
-                    </>
-                  )}
-                </dl>
-              ) : (
-                <p className="text-sm text-slate-400">
-                  {isAdmin
-                    ? 'Ops tools are disabled (OPS_TOOLS_ENABLED).'
-                    : 'Sign in as an admin to inspect migrations and SQL.'}
-                </p>
-              )}
-            </Card>
-          </div>
-
-          {counts && (
-            <Card title="What is in the database" subtitle="Live row counts from the ops endpoint">
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Entity</Th>
-                    <Th>Total</Th>
-                    <Th>Breakdown</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    ['Customers', counts.customers, null],
-                    ['Products', counts.products, null],
-                    ['Plans', counts.plans, null],
-                    ['Subscriptions', counts.subscriptions, counts.subscriptions_by_stage],
-                    ['Invoices', counts.invoices, counts.invoices_by_status],
-                    ['Payments', counts.payments, null],
-                    ['Billing runs', counts.billing_runs, null],
-                    ['Users', counts.users, null],
-                  ].map(([label, total, breakdown]) => (
-                    <Tr key={label}>
-                      <Td className="font-medium text-slate-800">{label}</Td>
-                      <Td>{total}</Td>
-                      <Td>
-                        {breakdown ? (
-                          <div className="flex flex-wrap gap-1">
-                            {Object.entries(breakdown).map(([key, value]) => (
-                              <Badge key={key}>
-                                {titleize(key)}: {value}
-                              </Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </Td>
-                    </Tr>
-                  ))}
-                </tbody>
-              </Table>
-              {ops && (
-                <p className="mt-3 text-xs text-slate-400">
-                  Snapshot at {dateTime(new Date().toISOString())}
-                </p>
-              )}
+                )}
+              </dl>
             </Card>
           )}
         </>

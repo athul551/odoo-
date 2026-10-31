@@ -16,7 +16,7 @@ export function Spinner({ className = '' }) {
 
 export function Loading({ label = 'Loading…' }) {
   return (
-    <div className="flex items-center gap-2 px-1 py-6 text-sm text-slate-500">
+    <div className="flex items-center gap-2 px-1 py-6 text-sm text-secondary">
       <Spinner />
       {label}
     </div>
@@ -26,7 +26,7 @@ export function Loading({ label = 'Loading…' }) {
 export function ErrorBox({ message, onRetry }) {
   if (!message) return null
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-bad/25 bg-bad/10 px-4 py-3 text-sm text-bad">
       <span className="whitespace-pre-wrap">{message}</span>
       {onRetry && (
         <Button size="xs" variant="secondary" onClick={onRetry}>
@@ -40,10 +40,10 @@ export function ErrorBox({ message, onRetry }) {
 export function SuccessBox({ message, onDismiss }) {
   if (!message) return null
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+    <div className="flex items-start justify-between gap-3 rounded-lg border border-ok/25 bg-ok/10 px-4 py-3 text-sm text-ok">
       <span className="whitespace-pre-wrap">{message}</span>
       {onDismiss && (
-        <button type="button" className="text-emerald-600" onClick={onDismiss} aria-label="Dismiss">
+        <button type="button" className="text-ok" onClick={onDismiss} aria-label="Dismiss">
           ✕
         </button>
       )}
@@ -53,9 +53,9 @@ export function SuccessBox({ message, onDismiss }) {
 
 export function EmptyState({ title = 'Nothing here yet', hint, action }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 px-6 py-10 text-center">
-      <p className="text-sm font-medium text-slate-600">{title}</p>
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+    <div className="rounded-lg border border-dashed border-line px-6 py-10 text-center">
+      <p className="text-sm font-medium text-secondary">{title}</p>
+      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   )

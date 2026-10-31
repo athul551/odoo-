@@ -115,8 +115,8 @@ export default function DatabasePage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Database</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-primary">Database</h1>
+          <p className="mt-1 text-sm text-secondary">
             Migrations, table contents and the SQL the console just ran.
           </p>
         </div>
@@ -130,7 +130,7 @@ export default function DatabasePage() {
       <ErrorBox message={error} />
 
       {notice && (
-        <div className="whitespace-pre-wrap rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 font-mono text-xs text-emerald-800">
+        <div className="whitespace-pre-wrap rounded-lg border border-ok/25 bg-ok/10 px-4 py-3 font-mono text-xs text-ok">
           {notice}
         </div>
       )}
@@ -168,8 +168,8 @@ export default function DatabasePage() {
                 ['DEBUG', overview.debug ? 'on' : 'off'],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-4">
-                  <dt className="text-slate-500">{label}</dt>
-                  <dd className="truncate text-right font-medium text-slate-700">{value}</dd>
+                  <dt className="text-secondary">{label}</dt>
+                  <dd className="truncate text-right font-medium text-secondary">{value}</dd>
                 </div>
               ))}
             </dl>
@@ -182,9 +182,9 @@ export default function DatabasePage() {
                 {overview.migrations.pending} pending
               </Badge>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-secondary">
               The migration list lives in the Migrations tab; applying runs the same{' '}
-              <code className="rounded bg-slate-100 px-1">manage.py migrate</code> you would run in a
+              <code className="rounded bg-raised px-1">manage.py migrate</code> you would run in a
               terminal.
             </p>
           </Card>
@@ -201,9 +201,9 @@ export default function DatabasePage() {
                 ['Billing runs', overview.counts.billing_runs],
                 ['Users', overview.counts.users],
               ].map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-slate-100 px-3 py-2">
-                  <p className="text-xs text-slate-400">{label}</p>
-                  <p className="text-lg font-semibold text-slate-800">{value}</p>
+                <div key={label} className="rounded-lg border border-line px-3 py-2">
+                  <p className="text-xs text-muted">{label}</p>
+                  <p className="text-lg font-semibold text-primary">{value}</p>
                 </div>
               ))}
             </div>
@@ -240,7 +240,7 @@ export default function DatabasePage() {
             <tbody>
               {migrations.apps.map((row) => (
                 <Tr key={row.app}>
-                  <Td className="font-medium text-slate-800">{row.app}</Td>
+                  <Td className="font-medium text-primary">{row.app}</Td>
                   <Td>
                     <Badge tone="emerald">{row.applied.length}</Badge>
                   </Td>
@@ -254,10 +254,10 @@ export default function DatabasePage() {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-slate-300">—</span>
+                      <span className="text-muted">—</span>
                     )}
                   </Td>
-                  <Td className="text-slate-500">
+                  <Td className="text-secondary">
                     {row.latest_applied_at ? dateTime(row.latest_applied_at) : '—'}
                   </Td>
                 </Tr>
@@ -281,9 +281,9 @@ export default function DatabasePage() {
               {tables.length === 0 && <EmptyRow colSpan={3}>No tables.</EmptyRow>}
               {tables.map((row) => (
                 <Tr key={row.table}>
-                  <Td className="font-mono text-xs text-slate-700">{row.table}</Td>
+                  <Td className="font-mono text-xs text-secondary">{row.table}</Td>
                   <Td>{row.rows}</Td>
-                  <Td className="text-slate-500">{bytes(row.bytes)}</Td>
+                  <Td className="text-secondary">{bytes(row.bytes)}</Td>
                 </Tr>
               ))}
             </tbody>
@@ -349,9 +349,9 @@ export default function DatabasePage() {
                         {row.status}
                       </Badge>
                     </Td>
-                    <Td className="text-slate-500">{ms(row.ms)}</Td>
-                    <Td className="text-slate-500">{row.sql_count}</Td>
-                    <Td className="text-slate-500">{row.user || 'anonymous'}</Td>
+                    <Td className="text-secondary">{ms(row.ms)}</Td>
+                    <Td className="text-secondary">{row.sql_count}</Td>
+                    <Td className="text-secondary">{row.user || 'anonymous'}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -370,14 +370,14 @@ export default function DatabasePage() {
                 {logs.sql.length === 0 && <EmptyRow colSpan={4}>No SQL recorded yet.</EmptyRow>}
                 {logs.sql.map((row, index) => (
                   <Tr key={index}>
-                    <Td className="whitespace-nowrap font-mono text-xs text-slate-500">
+                    <Td className="whitespace-nowrap font-mono text-xs text-secondary">
                       {row.method} {row.path}
                     </Td>
-                    <Td className="whitespace-nowrap text-xs text-slate-500">{ms(row.ms)}</Td>
-                    <Td className="max-w-xl break-words font-mono text-xs text-slate-700">
+                    <Td className="whitespace-nowrap text-xs text-secondary">{ms(row.ms)}</Td>
+                    <Td className="max-w-xl break-words font-mono text-xs text-secondary">
                       {row.sql}
                     </Td>
-                    <Td className="max-w-xs break-words font-mono text-xs text-slate-400">
+                    <Td className="max-w-xs break-words font-mono text-xs text-muted">
                       {row.params}
                     </Td>
                   </Tr>

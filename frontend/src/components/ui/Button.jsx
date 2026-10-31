@@ -1,16 +1,16 @@
 const VARIANTS = {
-  primary: 'bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-indigo-300',
+  primary: 'bg-accent text-base hover:bg-accent-hover disabled:bg-accent/40',
   secondary:
-    'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:text-slate-400',
-  danger: 'bg-rose-600 text-white hover:bg-rose-700 disabled:bg-rose-300',
-  success: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300',
-  ghost: 'text-slate-600 hover:bg-slate-100',
+    'border border-line bg-panel text-primary hover:bg-raised disabled:text-muted disabled:opacity-60',
+  danger: 'bg-bad/90 text-base hover:bg-bad disabled:bg-bad/40',
+  ghost: 'text-secondary hover:bg-raised hover:text-primary',
 }
 
 const SIZES = {
-  xs: 'px-2 py-1 text-xs',
-  sm: 'px-2.5 py-1.5 text-xs',
-  md: 'px-4 py-2 text-sm',
+  xs: 'px-2 py-1 text-xs rounded-md',
+  sm: 'px-2.5 py-1.5 text-xs rounded-md',
+  md: 'px-4 py-2 text-sm rounded-lg',
+  lg: 'h-[60px] px-6 text-[15px] rounded-lg',
 }
 
 export default function Button({
@@ -24,7 +24,7 @@ export default function Button({
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 font-medium transition disabled:cursor-not-allowed ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
       {...props}
     >
       {children}

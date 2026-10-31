@@ -374,8 +374,8 @@ export default function CatalogPage() {
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-bold text-slate-900">Catalog</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-primary">Catalog</h1>
+        <p className="mt-1 text-sm text-secondary">
           Products, plans and tax rules. Only admins may change the catalog.
         </p>
       </header>
@@ -421,7 +421,7 @@ export default function CatalogPage() {
               {products.length === 0 && <EmptyRow colSpan={7}>No products yet.</EmptyRow>}
               {products.map((product) => (
                 <Tr key={product.id}>
-                  <Td className="font-medium text-slate-800">{product.name}</Td>
+                  <Td className="font-medium text-primary">{product.name}</Td>
                   <Td>{titleize(product.type)}</Td>
                   <Td>{money(product.sales_price)}</Td>
                   <Td>{money(product.cost_price)}</Td>
@@ -486,7 +486,7 @@ export default function CatalogPage() {
               {plans.length === 0 && <EmptyRow colSpan={7}>No plans yet.</EmptyRow>}
               {plans.map((plan) => (
                 <Tr key={plan.id}>
-                  <Td className="font-medium text-slate-800">{plan.name}</Td>
+                  <Td className="font-medium text-primary">{plan.name}</Td>
                   <Td>{plan.product_name}</Td>
                   <Td>{titleize(plan.billing_frequency)}</Td>
                   <Td>{money(plan.price)}</Td>
@@ -498,7 +498,7 @@ export default function CatalogPage() {
                       {plan.allow_early_close && <Badge>Early close</Badge>}
                     </div>
                   </Td>
-                  <Td className="text-slate-500">
+                  <Td className="text-secondary">
                     {dateOnly(plan.availability_start)} →{' '}
                     {plan.availability_end ? dateOnly(plan.availability_end) : 'open'}
                   </Td>
@@ -545,7 +545,7 @@ export default function CatalogPage() {
               {taxes.length === 0 && <EmptyRow colSpan={4}>No tax rules yet.</EmptyRow>}
               {taxes.map((tax) => (
                 <Tr key={tax.id}>
-                  <Td className="font-medium text-slate-800">{tax.name}</Td>
+                  <Td className="font-medium text-primary">{tax.name}</Td>
                   <Td>{Number(tax.rate).toFixed(2)}%</Td>
                   <Td>
                     <Badge tone={tax.active ? 'emerald' : 'slate'}>

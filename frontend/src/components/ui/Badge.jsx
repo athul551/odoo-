@@ -1,10 +1,10 @@
 const TONES = {
-  slate: 'bg-slate-100 text-slate-700',
-  indigo: 'bg-indigo-50 text-indigo-700',
-  emerald: 'bg-emerald-50 text-emerald-700',
-  amber: 'bg-amber-50 text-amber-800',
-  rose: 'bg-rose-50 text-rose-700',
-  sky: 'bg-sky-50 text-sky-700',
+  slate: 'bg-raised text-secondary',
+  indigo: 'bg-accent/15 text-accent',
+  emerald: 'bg-ok/15 text-ok',
+  amber: 'bg-warn/15 text-warn',
+  rose: 'bg-bad/15 text-bad',
+  sky: 'bg-info/15 text-info',
 }
 
 export default function Badge({ tone = 'slate', children, className = '' }) {

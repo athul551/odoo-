@@ -39,16 +39,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-base px-4">
       <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <p className="text-2xl font-bold tracking-tight text-indigo-600">Brightloop</p>
-          <p className="mt-1 text-sm text-slate-500">Backend console</p>
+        <div className="mb-8 text-center">
+          <p className="text-2xl font-bold tracking-tight text-primary">Brightloop</p>
+          <p className="mt-1.5 text-sm text-muted">Subscription management</p>
         </div>
 
         <form
           onSubmit={submit}
-          className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+          className="space-y-6 rounded-xl border border-line bg-panel p-8"
         >
           <ErrorBox message={error} />
           <Field label="Email">
@@ -58,7 +58,7 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="admin@example.com"
+              placeholder="you@example.com"
             />
           </Field>
           <Field label="Password">
@@ -70,20 +70,22 @@ export default function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </Field>
-          <Button type="submit" className="w-full" disabled={busy}>
+          <Button type="submit" size="lg" className="w-full" disabled={busy}>
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
 
-        <div className="mt-4 space-y-1 text-center text-xs text-slate-400">
+        <div className="mt-6 space-y-1.5 text-center text-xs text-muted">
           <p>
             Need an account? Run{' '}
-            <code className="rounded bg-slate-100 px-1 py-0.5">manage.py createsuperuser</code>{' '}
+            <code className="rounded bg-raised px-1.5 py-0.5 text-secondary">
+              manage.py createsuperuser
+            </code>{' '}
             in the backend.
           </p>
           <p>
             Forgot the password?{' '}
-            <code className="rounded bg-slate-100 px-1 py-0.5">
+            <code className="rounded bg-raised px-1.5 py-0.5 text-secondary">
               manage.py changepassword you@example.com
             </code>
           </p>

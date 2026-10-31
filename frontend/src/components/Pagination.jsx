@@ -7,7 +7,7 @@ export default function Pagination({ page, pageSize, count, onPage, busy = false
   const to = Math.min(page * pageSize, count)
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-xs text-slate-500">
+    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-xs text-secondary">
       <span>
         {from}–{to} of {count}
       </span>

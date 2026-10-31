@@ -7,12 +7,12 @@ export default function Card({
   bodyClassName = '',
 }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}>
+    <section className={`rounded-xl border border-line bg-panel ${className}`}>
       {(title || actions) && (
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
           <div>
-            {title && <h2 className="text-sm font-semibold text-slate-800">{title}</h2>}
-            {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+            {title && <h2 className="text-sm font-semibold text-primary">{title}</h2>}
+            {subtitle && <p className="mt-1 text-xs text-muted">{subtitle}</p>}
           </div>
           {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>

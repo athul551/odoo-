@@ -26,9 +26,9 @@ function RunReport({ run }) {
       </div>
 
       {report.failed?.length > 0 && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
-          <p className="text-xs font-semibold text-rose-800">Records that could not be billed</p>
-          <ul className="mt-1 space-y-1 text-xs text-rose-700">
+        <div className="rounded-lg border border-bad/25 bg-bad/10 px-3 py-2">
+          <p className="text-xs font-semibold text-bad">Records that could not be billed</p>
+          <ul className="mt-1 space-y-1 text-xs text-bad">
             {report.failed.map((failure, index) => (
               <li key={index}>
                 <span className="font-medium">{failure.subscription}</span>: {failure.error}
@@ -40,10 +40,10 @@ function RunReport({ run }) {
 
       {report.billed?.length > 0 && (
         <details>
-          <summary className="cursor-pointer text-xs font-medium text-slate-600">
+          <summary className="cursor-pointer text-xs font-medium text-secondary">
             Billed periods ({report.billed.length})
           </summary>
-          <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+          <ul className="mt-1 space-y-0.5 text-xs text-secondary">
             {report.billed.map(([number, period], index) => (
               <li key={index}>
                 {number} · {period}
@@ -55,10 +55,10 @@ function RunReport({ run }) {
 
       {report.skipped_already_billed?.length > 0 && (
         <details>
-          <summary className="cursor-pointer text-xs font-medium text-slate-600">
+          <summary className="cursor-pointer text-xs font-medium text-secondary">
             Already billed ({report.skipped_already_billed.length})
           </summary>
-          <ul className="mt-1 space-y-0.5 text-xs text-slate-500">
+          <ul className="mt-1 space-y-0.5 text-xs text-secondary">
             {report.skipped_already_billed.map(([number, period], index) => (
               <li key={index}>
                 {number} · {period}
@@ -140,8 +140,8 @@ export default function BillingPage() {
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-bold text-slate-900">Billing</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-primary">Billing</h1>
+        <p className="mt-1 text-sm text-secondary">
           Preview the day, run the idempotent batch, then work the invoices it produced.
         </p>
       </header>
@@ -207,14 +207,14 @@ export default function BillingPage() {
                 </div>
 
                 {preview.missed_periods > 0 && (
-                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <p className="rounded-lg border border-warn/25 bg-warn/10 px-3 py-2 text-xs text-warn">
                     {preview.missed_periods} due period(s) belong to terms that already ended.
                     Running the batch still bills them — that is revenue waiting, not a mistake.
                   </p>
                 )}
 
                 {preview.problems?.length > 0 && (
-                  <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  <div className="rounded-lg border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">
                     {preview.problems.map((problem, index) => (
                       <p key={index}>
                         <span className="font-medium">{problem.subscription}</span>: {problem.error}
@@ -239,9 +239,9 @@ export default function BillingPage() {
                     )}
                     {preview.items.map((item, index) => (
                       <Tr key={index}>
-                        <Td className="font-medium text-slate-800">{item.subscription}</Td>
+                        <Td className="font-medium text-primary">{item.subscription}</Td>
                         <Td>{item.customer}</Td>
-                        <Td className="whitespace-nowrap text-slate-500">
+                        <Td className="whitespace-nowrap text-secondary">
                           {dateOnly(item.period_start)} → {dateOnly(item.period_end)}
                         </Td>
                         <Td>{money(item.estimated_subtotal)}</Td>
@@ -255,7 +255,7 @@ export default function BillingPage() {
                   </tbody>
                 </Table>
                 {preview.truncated && (
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-muted">
                     Showing the first {preview.items.length} items.
                   </p>
                 )}
@@ -264,7 +264,7 @@ export default function BillingPage() {
 
             {result && (
               <div className="space-y-3">
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-secondary">
                   Billing run #{result.id} finished on {dateOnly(result.ran_on)}.
                 </p>
                 <RunReport run={result} />
@@ -296,7 +296,7 @@ export default function BillingPage() {
                   {runs.length === 0 && <EmptyRow colSpan={7}>No billing run yet.</EmptyRow>}
                   {runs.map((run) => (
                     <Tr key={run.id} onClick={() => setSelectedRun(run)}>
-                      <Td className="font-medium text-slate-800">#{run.id}</Td>
+                      <Td className="font-medium text-primary">#{run.id}</Td>
                       <Td>{dateOnly(run.ran_on)}</Td>
                       <Td>{run.billed_count}</Td>
                       <Td>{run.skipped_count}</Td>
@@ -304,7 +304,7 @@ export default function BillingPage() {
                         <Badge tone={run.failed_count ? 'rose' : 'slate'}>{run.failed_count}</Badge>
                       </Td>
                       <Td>{run.invoice_count}</Td>
-                      <Td className="text-slate-500">{dateTime(run.finished_at)}</Td>
+                      <Td className="text-secondary">{dateTime(run.finished_at)}</Td>
                     </Tr>
                   ))}
                 </tbody>

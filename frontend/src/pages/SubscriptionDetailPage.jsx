@@ -197,16 +197,16 @@ export default function SubscriptionDetailPage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Link to="/subscriptions" className="text-sm text-slate-400 hover:text-slate-600">
+            <Link to="/subscriptions" className="text-sm text-muted hover:text-secondary">
               ← Subscriptions
             </Link>
           </div>
-          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900">
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-primary">
             {subscription.number}
             <StageBadge stage={subscription.stage} label={subscription.stage_display} />
             {subscription.is_paused && <Badge tone="amber">Paused</Badge>}
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-secondary">
             {subscription.customer_name} · {subscription.plan_name} ·{' '}
             {subscription.billing_frequency}
           </p>
@@ -228,7 +228,7 @@ export default function SubscriptionDetailPage() {
 
       <ErrorBox message={error} onRetry={load} />
       {notice && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="rounded-lg border border-ok/25 bg-ok/10 px-4 py-3 text-sm text-ok">
           {notice}
         </div>
       )}
@@ -282,16 +282,16 @@ export default function SubscriptionDetailPage() {
         <Card title="Totals">
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-slate-500">Subtotal</dt>
+              <dt className="text-secondary">Subtotal</dt>
               <dd className="font-medium">{money(subscription.subtotal)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-slate-500">Tax</dt>
+              <dt className="text-secondary">Tax</dt>
               <dd className="font-medium">{money(subscription.tax_total)}</dd>
             </div>
-            <div className="flex justify-between border-t border-slate-100 pt-2">
-              <dt className="font-medium text-slate-700">Total</dt>
-              <dd className="font-semibold text-slate-900">{money(subscription.total)}</dd>
+            <div className="flex justify-between border-t border-line pt-2">
+              <dt className="font-medium text-secondary">Total</dt>
+              <dd className="font-semibold text-primary">{money(subscription.total)}</dd>
             </div>
           </dl>
         </Card>
@@ -319,8 +319,8 @@ export default function SubscriptionDetailPage() {
             )}
             {subscription.lines.map((line) => (
               <Tr key={line.id}>
-                <Td className="font-medium text-slate-800">{line.product_name}</Td>
-                <Td>{line.variant_label || <span className="text-slate-300">—</span>}</Td>
+                <Td className="font-medium text-primary">{line.product_name}</Td>
+                <Td>{line.variant_label || <span className="text-muted">—</span>}</Td>
                 <Td>{line.quantity}</Td>
                 <Td>{money(line.unit_price)}</Td>
                 <Td>{line.tax_rate ? `${Number(line.tax_rate).toFixed(2)}%` : '—'}</Td>
@@ -413,7 +413,7 @@ export default function SubscriptionDetailPage() {
           title="Invoices"
           subtitle="Periods already billed for this subscription."
           actions={
-            <Link to="/billing" className="text-xs font-medium text-indigo-600">
+            <Link to="/billing" className="text-xs font-medium text-accent">
               Billing day →
             </Link>
           }
@@ -431,8 +431,8 @@ export default function SubscriptionDetailPage() {
               {invoices.length === 0 && <EmptyRow colSpan={4}>No invoices yet.</EmptyRow>}
               {invoices.map((invoice) => (
                 <Tr key={invoice.id}>
-                  <Td className="font-medium text-slate-800">{invoice.number}</Td>
-                  <Td className="whitespace-nowrap text-slate-500">
+                  <Td className="font-medium text-primary">{invoice.number}</Td>
+                  <Td className="whitespace-nowrap text-secondary">
                     {dateOnly(invoice.period_start)} → {dateOnly(invoice.period_end)}
                   </Td>
                   <Td>
