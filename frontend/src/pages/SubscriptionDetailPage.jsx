@@ -197,16 +197,16 @@ export default function SubscriptionDetailPage() {
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Link to="/subscriptions" className="text-sm text-muted hover:text-secondary">
+            <Link to="/subscriptions" className="text-sm text-faint hover:text-muted">
               ← Subscriptions
             </Link>
           </div>
-          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-primary">
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-paper">
             {subscription.number}
             <StageBadge stage={subscription.stage} label={subscription.stage_display} />
             {subscription.is_paused && <Badge tone="amber">Paused</Badge>}
           </h1>
-          <p className="mt-1 text-sm text-secondary">
+          <p className="mt-1 text-sm text-faint">
             {subscription.customer_name} · {subscription.plan_name} ·{' '}
             {subscription.billing_frequency}
           </p>
@@ -228,7 +228,7 @@ export default function SubscriptionDetailPage() {
 
       <ErrorBox message={error} onRetry={load} />
       {notice && (
-        <div className="rounded-lg border border-ok/25 bg-ok/10 px-4 py-3 text-sm text-ok">
+        <div className="rounded-lg border border-ok/40 bg-ok/10 px-4 py-3 text-sm text-ok">
           {notice}
         </div>
       )}
@@ -282,16 +282,16 @@ export default function SubscriptionDetailPage() {
         <Card title="Totals">
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <dt className="text-secondary">Subtotal</dt>
+              <dt className="text-faint">Subtotal</dt>
               <dd className="font-medium">{money(subscription.subtotal)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-secondary">Tax</dt>
+              <dt className="text-faint">Tax</dt>
               <dd className="font-medium">{money(subscription.tax_total)}</dd>
             </div>
-            <div className="flex justify-between border-t border-line pt-2">
-              <dt className="font-medium text-secondary">Total</dt>
-              <dd className="font-semibold text-primary">{money(subscription.total)}</dd>
+            <div className="flex justify-between border-t border-ink-600 pt-2">
+              <dt className="font-medium text-muted">Total</dt>
+              <dd className="font-semibold text-paper">{money(subscription.total)}</dd>
             </div>
           </dl>
         </Card>
@@ -319,8 +319,8 @@ export default function SubscriptionDetailPage() {
             )}
             {subscription.lines.map((line) => (
               <Tr key={line.id}>
-                <Td className="font-medium text-primary">{line.product_name}</Td>
-                <Td>{line.variant_label || <span className="text-muted">—</span>}</Td>
+                <Td className="font-medium text-paper">{line.product_name}</Td>
+                <Td>{line.variant_label || <span className="text-faint">—</span>}</Td>
                 <Td>{line.quantity}</Td>
                 <Td>{money(line.unit_price)}</Td>
                 <Td>{line.tax_rate ? `${Number(line.tax_rate).toFixed(2)}%` : '—'}</Td>
@@ -431,8 +431,8 @@ export default function SubscriptionDetailPage() {
               {invoices.length === 0 && <EmptyRow colSpan={4}>No invoices yet.</EmptyRow>}
               {invoices.map((invoice) => (
                 <Tr key={invoice.id}>
-                  <Td className="font-medium text-primary">{invoice.number}</Td>
-                  <Td className="whitespace-nowrap text-secondary">
+                  <Td className="font-medium text-paper">{invoice.number}</Td>
+                  <Td className="whitespace-nowrap text-faint">
                     {dateOnly(invoice.period_start)} → {dateOnly(invoice.period_end)}
                   </Td>
                   <Td>

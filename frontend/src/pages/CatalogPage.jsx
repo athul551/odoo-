@@ -7,6 +7,7 @@ import { ErrorBox, Loading } from '../components/ui/Feedback'
 import { Checkbox, Field, FormGrid, Select, TextInput, Textarea } from '../components/ui/Form'
 import Modal from '../components/ui/Modal'
 import Tabs from '../components/ui/Tabs'
+import QuotationTemplates from '../components/catalog/QuotationTemplates'
 import { EmptyRow, Table, Td, Th, Tr } from '../components/ui/Table'
 import api, { apiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
@@ -374,8 +375,8 @@ export default function CatalogPage() {
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-bold text-primary">Catalog</h1>
-        <p className="mt-1 text-sm text-secondary">
+        <h1 className="text-2xl font-bold text-paper">Catalog</h1>
+        <p className="mt-1 text-sm text-faint">
           Products, plans and tax rules. Only admins may change the catalog.
         </p>
       </header>
@@ -387,6 +388,7 @@ export default function CatalogPage() {
           { id: 'products', label: 'Products', count: products.length },
           { id: 'plans', label: 'Plans', count: plans.length },
           { id: 'taxes', label: 'Tax rules', count: taxes.length },
+          { id: 'templates', label: 'Templates' },
         ]}
         active={tab}
         onChange={setTab}
@@ -421,7 +423,7 @@ export default function CatalogPage() {
               {products.length === 0 && <EmptyRow colSpan={7}>No products yet.</EmptyRow>}
               {products.map((product) => (
                 <Tr key={product.id}>
-                  <Td className="font-medium text-primary">{product.name}</Td>
+                  <Td className="font-medium text-paper">{product.name}</Td>
                   <Td>{titleize(product.type)}</Td>
                   <Td>{money(product.sales_price)}</Td>
                   <Td>{money(product.cost_price)}</Td>
@@ -486,7 +488,7 @@ export default function CatalogPage() {
               {plans.length === 0 && <EmptyRow colSpan={7}>No plans yet.</EmptyRow>}
               {plans.map((plan) => (
                 <Tr key={plan.id}>
-                  <Td className="font-medium text-primary">{plan.name}</Td>
+                  <Td className="font-medium text-paper">{plan.name}</Td>
                   <Td>{plan.product_name}</Td>
                   <Td>{titleize(plan.billing_frequency)}</Td>
                   <Td>{money(plan.price)}</Td>
@@ -498,7 +500,7 @@ export default function CatalogPage() {
                       {plan.allow_early_close && <Badge>Early close</Badge>}
                     </div>
                   </Td>
-                  <Td className="text-secondary">
+                  <Td className="text-faint">
                     {dateOnly(plan.availability_start)} →{' '}
                     {plan.availability_end ? dateOnly(plan.availability_end) : 'open'}
                   </Td>
@@ -518,6 +520,8 @@ export default function CatalogPage() {
             </tbody>
           </Table>
         </Card>
+      ) : tab === 'templates' ? (
+        <QuotationTemplates />
       ) : (
         <Card
           title="Tax rules"
@@ -545,7 +549,7 @@ export default function CatalogPage() {
               {taxes.length === 0 && <EmptyRow colSpan={4}>No tax rules yet.</EmptyRow>}
               {taxes.map((tax) => (
                 <Tr key={tax.id}>
-                  <Td className="font-medium text-primary">{tax.name}</Td>
+                  <Td className="font-medium text-paper">{tax.name}</Td>
                   <Td>{Number(tax.rate).toFixed(2)}%</Td>
                   <Td>
                     <Badge tone={tax.active ? 'emerald' : 'slate'}>

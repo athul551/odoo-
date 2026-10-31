@@ -1,7 +1,7 @@
 export function Table({ children, className = '' }) {
   return (
-    <div className={`-mx-5 overflow-x-auto ${className}`}>
-      <table className="min-w-full divide-y divide-line text-left text-sm">{children}</table>
+    <div className={`-mx-6 overflow-x-auto ${className}`}>
+      <table className="min-w-full divide-y divide-ink-600 text-left text-sm">{children}</table>
     </div>
   )
 }
@@ -9,7 +9,7 @@ export function Table({ children, className = '' }) {
 export function Th({ children, className = '' }) {
   return (
     <th
-      className={`whitespace-nowrap px-5 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted ${className}`}
+      className={`whitespace-nowrap bg-ink-900 px-6 py-3 text-[11px] font-medium uppercase tracking-[0.12em] text-faint ${className}`}
     >
       {children}
     </th>
@@ -18,7 +18,7 @@ export function Th({ children, className = '' }) {
 
 export function Td({ children, className = '', colSpan }) {
   return (
-    <td colSpan={colSpan} className={`px-5 py-3 align-top text-secondary ${className}`}>
+    <td colSpan={colSpan} className={`px-6 py-4 align-middle text-muted ${className}`}>
       {children}
     </td>
   )
@@ -28,7 +28,7 @@ export function Tr({ children, className = '', onClick }) {
   return (
     <tr
       onClick={onClick}
-      className={`border-b border-line/60 last:border-0 ${onClick ? 'cursor-pointer hover:bg-raised' : ''} ${className}`}
+      className={`border-b border-ink-700 last:border-0 ${onClick ? 'cursor-pointer hover:bg-ink-700' : ''} ${className}`}
     >
       {children}
     </tr>
@@ -38,7 +38,7 @@ export function Tr({ children, className = '', onClick }) {
 export function EmptyRow({ colSpan, children = 'Nothing here yet.' }) {
   return (
     <tr>
-      <td colSpan={colSpan} className="px-5 py-8 text-center text-sm text-muted">
+      <td colSpan={colSpan} className="px-6 py-10 text-center text-sm text-faint">
         {children}
       </td>
     </tr>

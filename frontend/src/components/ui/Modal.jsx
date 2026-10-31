@@ -14,31 +14,31 @@ export default function Modal({ open, title, subtitle, onClose, children, footer
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-base/70 backdrop-blur-sm px-4 py-10">
+    <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink-950/80 px-4 py-10">
       <div
-        className={`w-full rounded-xl bg-panel shadow-xl ${wide ? 'max-w-4xl' : 'max-w-xl'}`}
+        className={`w-full rounded-panel border border-ink-600 bg-ink-800 ${wide ? 'max-w-4xl' : 'max-w-xl'}`}
         role="dialog"
         aria-modal="true"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <header className="flex items-start justify-between gap-4 border-b border-ink-600 px-6 py-4">
           <div>
-            <h2 className="text-base font-semibold text-primary">{title}</h2>
-            {subtitle && <p className="mt-1 text-xs text-secondary">{subtitle}</p>}
+            <h2 className="text-base font-semibold text-paper">{title}</h2>
+            {subtitle && <p className="mt-1 text-xs text-faint">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-2 py-1 text-muted hover:bg-raised hover:text-secondary"
+            className="rounded-md px-2 py-1 text-faint transition hover:bg-ink-700 hover:text-paper"
             aria-label="Close"
           >
             ✕
           </button>
         </header>
 
-        <div className="px-5 py-4">{children}</div>
+        <div className="px-6 py-5">{children}</div>
 
         {footer && (
-          <footer className="flex flex-wrap justify-end gap-2 border-t border-line px-5 py-3">
+          <footer className="flex flex-wrap justify-end gap-2 border-t border-ink-600 px-6 py-4">
             {footer}
           </footer>
         )}
@@ -73,7 +73,7 @@ export function ConfirmModal({
         </>
       }
     >
-      <p className="text-sm text-secondary">{message}</p>
+      <p className="text-sm leading-relaxed text-muted">{message}</p>
     </Modal>
   )
 }

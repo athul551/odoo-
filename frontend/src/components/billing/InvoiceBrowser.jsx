@@ -172,10 +172,10 @@ export default function InvoiceBrowser() {
                 {rows.length === 0 && <EmptyRow colSpan={7}>No invoices match.</EmptyRow>}
                 {rows.map((invoice) => (
                   <Tr key={invoice.id} onClick={() => openInvoice(invoice)}>
-                    <Td className="font-medium text-primary">{invoice.number}</Td>
+                    <Td className="font-medium text-paper">{invoice.number}</Td>
                     <Td>{invoice.customer_name}</Td>
                     <Td>{invoice.subscription_number}</Td>
-                    <Td className="whitespace-nowrap text-secondary">
+                    <Td className="whitespace-nowrap text-faint">
                       {dateOnly(invoice.period_start)} → {dateOnly(invoice.period_end)}
                     </Td>
                     <Td>
@@ -251,23 +251,23 @@ export default function InvoiceBrowser() {
             <ErrorBox message={error} />
             <div className="grid gap-3 sm:grid-cols-4">
               <div>
-                <p className="text-xs text-muted">Status</p>
+                <p className="text-xs text-faint">Status</p>
                 <StatusBadge status={detail.status} label={detail.status_display} />
               </div>
               <div>
-                <p className="text-xs text-muted">Period</p>
-                <p className="text-sm text-secondary">
+                <p className="text-xs text-faint">Period</p>
+                <p className="text-sm text-muted">
                   {dateOnly(detail.period_start)} → {dateOnly(detail.period_end)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted">Issued / due</p>
-                <p className="text-sm text-secondary">
+                <p className="text-xs text-faint">Issued / due</p>
+                <p className="text-sm text-muted">
                   {dateOnly(detail.issued_at)} / {dateOnly(detail.due_date)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted">Overdue</p>
+                <p className="text-xs text-faint">Overdue</p>
                 <Badge tone={detail.is_overdue ? 'rose' : 'emerald'}>
                   {detail.is_overdue ? 'Yes' : 'No'}
                 </Badge>
@@ -296,21 +296,21 @@ export default function InvoiceBrowser() {
               </tbody>
             </Table>
 
-            <div className="grid gap-2 rounded-lg bg-sunken px-4 py-3 text-sm sm:grid-cols-4">
+            <div className="grid gap-2 rounded-lg bg-ink-950 px-4 py-3 text-sm sm:grid-cols-4">
               <div>
-                <p className="text-xs text-muted">Subtotal</p>
+                <p className="text-xs text-faint">Subtotal</p>
                 <p>{money(detail.subtotal)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted">Discount</p>
+                <p className="text-xs text-faint">Discount</p>
                 <p>-{money(detail.discount_total)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted">Tax</p>
+                <p className="text-xs text-faint">Tax</p>
                 <p>{money(detail.tax_total)}</p>
               </div>
               <div>
-                <p className="text-xs text-muted">Total / paid / due</p>
+                <p className="text-xs text-faint">Total / paid / due</p>
                 <p className="font-medium">
                   {money(detail.total)} / {money(detail.amount_paid)} /{' '}
                   {money(detail.amount_due)}
@@ -319,7 +319,7 @@ export default function InvoiceBrowser() {
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-secondary">Payments</h3>
+              <h3 className="mb-2 text-sm font-semibold text-muted">Payments</h3>
               <Table>
                 <thead>
                   <tr>
@@ -341,7 +341,7 @@ export default function InvoiceBrowser() {
                       <Td>{titleize(entry.method)}</Td>
                       <Td>{entry.reference || '—'}</Td>
                       <Td>{money(entry.amount)}</Td>
-                      <Td className="text-secondary">{entry.recorded_by_email || '—'}</Td>
+                      <Td className="text-faint">{entry.recorded_by_email || '—'}</Td>
                       <Td className="text-right">
                         {detail.status !== 'cancelled' && (
                           <Button
@@ -361,8 +361,8 @@ export default function InvoiceBrowser() {
             </div>
 
             {detail.status !== 'cancelled' && Number(detail.amount_due) > 0 && (
-              <form onSubmit={recordPayment} className="space-y-3 rounded-lg border border-line p-4">
-                <h3 className="text-sm font-semibold text-secondary">Record a payment</h3>
+              <form onSubmit={recordPayment} className="space-y-3 rounded-lg border border-ink-600 p-4">
+                <h3 className="text-sm font-semibold text-muted">Record a payment</h3>
                 <ErrorBox message={paymentError} />
                 <FormGrid columns={3}>
                   <Field label="Amount">
@@ -415,7 +415,7 @@ export default function InvoiceBrowser() {
               </form>
             )}
 
-            <p className="text-xs text-muted">Created {dateTime(detail.created_at)}</p>
+            <p className="text-xs text-faint">Created {dateTime(detail.created_at)}</p>
           </div>
         ) : null}
       </Modal>

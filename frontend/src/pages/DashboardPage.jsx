@@ -11,10 +11,10 @@ import { money, titleize } from '../lib/format'
 
 function Kpi({ label, value, hint }) {
   return (
-    <div className="rounded-xl border border-line bg-panel px-6 py-5">
-      <p className="text-xs font-medium uppercase tracking-widest text-muted">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-primary">{value}</p>
-      {hint && <p className="mt-1.5 text-xs text-muted">{hint}</p>}
+    <div className="rounded-panel border border-ink-600 bg-ink-800 px-6 py-5">
+      <p className="text-xs font-medium uppercase tracking-widest text-faint">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-paper">{value}</p>
+      {hint && <p className="mt-1.5 text-xs text-faint">{hint}</p>}
     </div>
   )
 }
@@ -101,8 +101,8 @@ export default function DashboardPage() {
       {/* overview title */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-5xl font-light tracking-tight text-primary">Operations</h1>
-          <p className="mt-2 text-sm text-secondary">
+          <h1 className="text-5xl font-light tracking-tight text-paper">Operations</h1>
+          <p className="mt-2 text-sm text-faint">
             {summary && (
               <>
                 Month-end view {summary.window.start} → {summary.window.end} · as of{' '}
@@ -158,7 +158,7 @@ export default function DashboardPage() {
           <div className="grid gap-8 xl:grid-cols-3">
             <Card className="xl:col-span-2" title="Revenue mix" subtitle="Active subscriptions normalised to a month">
               {Object.keys(summary.active_by_frequency).length === 0 ? (
-                <p className="text-sm text-muted">No active subscriptions yet.</p>
+                <p className="text-sm text-faint">No active subscriptions yet.</p>
               ) : (
                 <div className="space-y-4">
                   {Object.entries(summary.active_by_frequency).map(([frequency, count]) => {
@@ -166,11 +166,11 @@ export default function DashboardPage() {
                     const width = Math.round((count / total) * 100)
                     return (
                       <div key={frequency}>
-                        <div className="flex items-center justify-between text-xs text-secondary">
+                        <div className="flex items-center justify-between text-xs text-faint">
                           <span className="capitalize">{titleize(frequency)}</span>
                           <span>{count}</span>
                         </div>
-                        <div className="mt-1.5 h-2 rounded-full bg-raised">
+                        <div className="mt-1.5 h-2 rounded-full bg-ink-700">
                           <div
                             className="h-2 rounded-full bg-accent"
                             style={{ width: `${width}%` }}
@@ -183,21 +183,21 @@ export default function DashboardPage() {
               )}
 
               {summary && (
-                <dl className="mt-8 grid grid-cols-2 gap-4 border-t border-line pt-6 text-sm sm:grid-cols-4">
+                <dl className="mt-8 grid grid-cols-2 gap-4 border-t border-ink-600 pt-6 text-sm sm:grid-cols-4">
                   <div>
-                    <dt className="text-xs text-muted">Outstanding</dt>
-                    <dd className="mt-1 font-medium text-primary">{money(summary.outstanding.amount)}</dd>
+                    <dt className="text-xs text-faint">Outstanding</dt>
+                    <dd className="mt-1 font-medium text-paper">{money(summary.outstanding.amount)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted">Overdue</dt>
+                    <dt className="text-xs text-faint">Overdue</dt>
                     <dd className="mt-1 font-medium text-bad">{money(summary.overdue.amount)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted">Invoiced</dt>
-                    <dd className="mt-1 font-medium text-primary">{money(summary.invoiced_total)}</dd>
+                    <dt className="text-xs text-faint">Invoiced</dt>
+                    <dd className="mt-1 font-medium text-paper">{money(summary.invoiced_total)}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted">Collected</dt>
+                    <dt className="text-xs text-faint">Collected</dt>
                     <dd className="mt-1 font-medium text-ok">{money(summary.collected_total)}</dd>
                   </div>
                 </dl>
@@ -228,24 +228,24 @@ export default function DashboardPage() {
                       {chase.results.slice(0, 5).map((invoice) => (
                         <Tr key={invoice.number}>
                           <Td>
-                            <p className="font-mono text-xs text-primary">{invoice.number}</p>
-                            <p className="mt-0.5 text-xs text-muted">{invoice.customer}</p>
+                            <p className="font-mono text-xs text-paper">{invoice.number}</p>
+                            <p className="mt-0.5 text-xs text-faint">{invoice.customer}</p>
                           </Td>
                           <Td>
                             <span className="text-xs text-bad">{invoice.due_date}</span>
                           </Td>
-                          <Td className="text-right text-primary">{invoice.amount_due}</Td>
+                          <Td className="text-right text-paper">{invoice.amount_due}</Td>
                         </Tr>
                       ))}
                     </tbody>
                   </Table>
                 ) : (
-                  <p className="text-sm text-muted">
+                  <p className="text-sm text-faint">
                     Nothing overdue — the collections list is empty.
                   </p>
                 )}
                 {chase && chase.count > chase.results?.length && (
-                  <p className="mt-3 text-xs text-muted">
+                  <p className="mt-3 text-xs text-faint">
                     and {chase.count - chase.results.length} more ·{' '}
                     <Link to="/billing" className="text-accent hover:text-accent-hover">
                       all in Billing
@@ -258,11 +258,11 @@ export default function DashboardPage() {
 
           {/* billing-day console */}
           {isStaff && (
-            <section className="rounded-xl border border-line bg-panel p-8">
+            <section className="rounded-panel border border-ink-600 bg-ink-800 p-8">
               <div className="flex flex-wrap items-center justify-between gap-6">
                 <div>
-                  <h2 className="text-2xl font-medium text-primary">Billing day</h2>
-                  <p className="mt-1.5 text-sm text-secondary">
+                  <h2 className="text-2xl font-medium text-paper">Billing day</h2>
+                  <p className="mt-1.5 text-sm text-faint">
                     Preview what tonight's run would invoice — nothing is written.
                   </p>
                 </div>
@@ -272,7 +272,7 @@ export default function DashboardPage() {
               </div>
 
               {preview && (
-                <div className="mt-6 border-t border-line pt-6">
+                <div className="mt-6 border-t border-ink-600 pt-6">
                   <div className="flex flex-wrap items-center gap-3">
                     <Badge tone="indigo">
                       {preview.invoices} invoice(s) for {preview.subscriptions} subscription(s)
@@ -283,7 +283,7 @@ export default function DashboardPage() {
                     {preview.problems?.length > 0 && (
                       <Badge tone="rose">{preview.problems.length} problem record(s)</Badge>
                     )}
-                    <span className="text-xs text-muted">on {preview.on}</span>
+                    <span className="text-xs text-faint">on {preview.on}</span>
                   </div>
 
                   {preview.items?.length > 0 && (
@@ -299,12 +299,12 @@ export default function DashboardPage() {
                       <tbody>
                         {preview.items.slice(0, 6).map((item) => (
                           <Tr key={`${item.subscription}-${item.period_start}`}>
-                            <Td className="font-mono text-xs text-primary">{item.subscription}</Td>
+                            <Td className="font-mono text-xs text-paper">{item.subscription}</Td>
                             <Td>{item.customer}</Td>
                             <Td className="text-xs">
                               {item.period_start} → {item.period_end}
                             </Td>
-                            <Td className="text-right text-primary">{item.estimated_subtotal}</Td>
+                            <Td className="text-right text-paper">{item.estimated_subtotal}</Td>
                           </Tr>
                         ))}
                       </tbody>
@@ -312,11 +312,11 @@ export default function DashboardPage() {
                   )}
 
                   {preview.truncated && (
-                    <p className="mt-3 text-xs text-muted">
+                    <p className="mt-3 text-xs text-faint">
                       List truncated — run the full console under Billing for everything.
                     </p>
                   )}
-                  <p className="mt-4 text-xs text-muted">
+                  <p className="mt-4 text-xs text-faint">
                     To execute for real,{' '}
                     <Link to="/billing" className="text-accent hover:text-accent-hover">
                       open the Billing console
@@ -343,25 +343,25 @@ export default function DashboardPage() {
             >
               <dl className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
                 <div>
-                  <dt className="text-xs text-muted">Migrations applied</dt>
-                  <dd className="mt-1 font-medium text-primary">{ops.migrations.applied}</dd>
+                  <dt className="text-xs text-faint">Migrations applied</dt>
+                  <dd className="mt-1 font-medium text-paper">{ops.migrations.applied}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted">Pending</dt>
+                  <dt className="text-xs text-faint">Pending</dt>
                   <dd className="mt-1">
                     <Badge tone={ops.migrations.pending ? 'amber' : 'ok'}>{ops.migrations.pending}</Badge>
                   </dd>
                 </div>
                 {ops.counts?.subscriptions != null && (
                   <div>
-                    <dt className="text-xs text-muted">Subscriptions</dt>
-                    <dd className="mt-1 font-medium text-primary">{ops.counts.subscriptions}</dd>
+                    <dt className="text-xs text-faint">Subscriptions</dt>
+                    <dd className="mt-1 font-medium text-paper">{ops.counts.subscriptions}</dd>
                   </div>
                 )}
                 {ops.counts?.invoices != null && (
                   <div>
-                    <dt className="text-xs text-muted">Invoices</dt>
-                    <dd className="mt-1 font-medium text-primary">{ops.counts.invoices}</dd>
+                    <dt className="text-xs text-faint">Invoices</dt>
+                    <dd className="mt-1 font-medium text-paper">{ops.counts.invoices}</dd>
                   </div>
                 )}
               </dl>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import InvoiceBrowser from '../components/billing/InvoiceBrowser'
+import PaymentsLedger from '../components/billing/PaymentsLedger'
 import Pagination from '../components/Pagination'
 import Badge from '../components/ui/Badge'
 import Button from '../components/ui/Button'
@@ -26,7 +27,7 @@ function RunReport({ run }) {
       </div>
 
       {report.failed?.length > 0 && (
-        <div className="rounded-lg border border-bad/25 bg-bad/10 px-3 py-2">
+        <div className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2">
           <p className="text-xs font-semibold text-bad">Records that could not be billed</p>
           <ul className="mt-1 space-y-1 text-xs text-bad">
             {report.failed.map((failure, index) => (
@@ -40,10 +41,10 @@ function RunReport({ run }) {
 
       {report.billed?.length > 0 && (
         <details>
-          <summary className="cursor-pointer text-xs font-medium text-secondary">
+          <summary className="cursor-pointer text-xs font-medium text-muted">
             Billed periods ({report.billed.length})
           </summary>
-          <ul className="mt-1 space-y-0.5 text-xs text-secondary">
+          <ul className="mt-1 space-y-0.5 text-xs text-faint">
             {report.billed.map(([number, period], index) => (
               <li key={index}>
                 {number} · {period}
@@ -55,10 +56,10 @@ function RunReport({ run }) {
 
       {report.skipped_already_billed?.length > 0 && (
         <details>
-          <summary className="cursor-pointer text-xs font-medium text-secondary">
+          <summary className="cursor-pointer text-xs font-medium text-muted">
             Already billed ({report.skipped_already_billed.length})
           </summary>
-          <ul className="mt-1 space-y-0.5 text-xs text-secondary">
+          <ul className="mt-1 space-y-0.5 text-xs text-faint">
             {report.skipped_already_billed.map(([number, period], index) => (
               <li key={index}>
                 {number} · {period}
@@ -140,8 +141,8 @@ export default function BillingPage() {
   return (
     <div className="space-y-5">
       <header>
-        <h1 className="text-2xl font-bold text-primary">Billing</h1>
-        <p className="mt-1 text-sm text-secondary">
+        <h1 className="text-2xl font-bold text-paper">Billing</h1>
+        <p className="mt-1 text-sm text-faint">
           Preview the day, run the idempotent batch, then work the invoices it produced.
         </p>
       </header>
@@ -153,6 +154,7 @@ export default function BillingPage() {
           { id: 'day', label: 'Billing day' },
           { id: 'runs', label: 'Runs', count: runCount || undefined },
           { id: 'invoices', label: 'Invoices' },
+          { id: 'payments', label: 'Payments' },
         ]}
         active={tab}
         onChange={setTab}
@@ -207,14 +209,14 @@ export default function BillingPage() {
                 </div>
 
                 {preview.missed_periods > 0 && (
-                  <p className="rounded-lg border border-warn/25 bg-warn/10 px-3 py-2 text-xs text-warn">
+                  <p className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
                     {preview.missed_periods} due period(s) belong to terms that already ended.
                     Running the batch still bills them — that is revenue waiting, not a mistake.
                   </p>
                 )}
 
                 {preview.problems?.length > 0 && (
-                  <div className="rounded-lg border border-bad/25 bg-bad/10 px-3 py-2 text-xs text-bad">
+                  <div className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad">
                     {preview.problems.map((problem, index) => (
                       <p key={index}>
                         <span className="font-medium">{problem.subscription}</span>: {problem.error}
@@ -239,9 +241,9 @@ export default function BillingPage() {
                     )}
                     {preview.items.map((item, index) => (
                       <Tr key={index}>
-                        <Td className="font-medium text-primary">{item.subscription}</Td>
+                        <Td className="font-medium text-paper">{item.subscription}</Td>
                         <Td>{item.customer}</Td>
-                        <Td className="whitespace-nowrap text-secondary">
+                        <Td className="whitespace-nowrap text-faint">
                           {dateOnly(item.period_start)} → {dateOnly(item.period_end)}
                         </Td>
                         <Td>{money(item.estimated_subtotal)}</Td>
@@ -255,7 +257,7 @@ export default function BillingPage() {
                   </tbody>
                 </Table>
                 {preview.truncated && (
-                  <p className="text-xs text-muted">
+                  <p className="text-xs text-faint">
                     Showing the first {preview.items.length} items.
                   </p>
                 )}
@@ -264,7 +266,7 @@ export default function BillingPage() {
 
             {result && (
               <div className="space-y-3">
-                <p className="text-sm text-secondary">
+                <p className="text-sm text-muted">
                   Billing run #{result.id} finished on {dateOnly(result.ran_on)}.
                 </p>
                 <RunReport run={result} />
@@ -296,7 +298,7 @@ export default function BillingPage() {
                   {runs.length === 0 && <EmptyRow colSpan={7}>No billing run yet.</EmptyRow>}
                   {runs.map((run) => (
                     <Tr key={run.id} onClick={() => setSelectedRun(run)}>
-                      <Td className="font-medium text-primary">#{run.id}</Td>
+                      <Td className="font-medium text-paper">#{run.id}</Td>
                       <Td>{dateOnly(run.ran_on)}</Td>
                       <Td>{run.billed_count}</Td>
                       <Td>{run.skipped_count}</Td>
@@ -304,7 +306,7 @@ export default function BillingPage() {
                         <Badge tone={run.failed_count ? 'rose' : 'slate'}>{run.failed_count}</Badge>
                       </Td>
                       <Td>{run.invoice_count}</Td>
-                      <Td className="text-secondary">{dateTime(run.finished_at)}</Td>
+                      <Td className="text-faint">{dateTime(run.finished_at)}</Td>
                     </Tr>
                   ))}
                 </tbody>
@@ -322,6 +324,8 @@ export default function BillingPage() {
       )}
 
       {tab === 'invoices' && <InvoiceBrowser />}
+
+      {tab === 'payments' && <PaymentsLedger />}
 
       <ConfirmModal
         open={confirmOpen}

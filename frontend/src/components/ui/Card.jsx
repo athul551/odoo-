@@ -7,17 +7,17 @@ export default function Card({
   bodyClassName = '',
 }) {
   return (
-    <section className={`rounded-xl border border-line bg-panel ${className}`}>
+    <section className={`dark-panel ${className}`}>
       {(title || actions) && (
-        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-ink-600 px-6 py-4">
           <div>
-            {title && <h2 className="text-sm font-semibold text-primary">{title}</h2>}
-            {subtitle && <p className="mt-1 text-xs text-muted">{subtitle}</p>}
+            {title && <h2 className="text-sm font-semibold text-paper">{title}</h2>}
+            {subtitle && <p className="mt-1 text-xs text-faint">{subtitle}</p>}
           </div>
           {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={`px-5 py-4 ${bodyClassName}`}>{children}</div>
+      <div className={`px-6 py-5 ${bodyClassName}`}>{children}</div>
     </section>
   )
 }

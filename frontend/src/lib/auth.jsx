@@ -17,6 +17,17 @@ function readStoredUser() {
   }
 }
 
+function storeSession(data) {
+  localStorage.setItem(KEYS.access, data.access)
+  localStorage.setItem(KEYS.refresh, data.refresh)
+  localStorage.setItem(KEYS.user, JSON.stringify(data.user))
+}
+
+/** Where a signed-in user belongs: customers get the portal, staff the console. */
+export function landingPath(user) {
+  return user?.role === 'customer' ? '/portal' : '/'
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(readStoredUser)
   const [ready, setReady] = useState(false)
@@ -40,11 +51,23 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/token/', { email, password })
-    localStorage.setItem(KEYS.access, data.access)
-    localStorage.setItem(KEYS.refresh, data.refresh)
-    localStorage.setItem(KEYS.user, JSON.stringify(data.user))
+    storeSession(data)
     setUser(data.user)
     return data.user
+  }, [])
+
+  const register = useCallback(async (payload) => {
+    const { data } = await api.post('/auth/register/', payload)
+    storeSession(data)
+    setUser(data.user)
+    return data.user
+  }, [])
+
+  const updateProfile = useCallback(async (payload) => {
+    const { data } = await api.patch('/auth/me/', payload)
+    setUser(data)
+    localStorage.setItem(KEYS.user, JSON.stringify(data))
+    return data
   }, [])
 
   const logout = useCallback(async () => {
@@ -65,11 +88,14 @@ export function AuthProvider({ children }) {
       user,
       ready,
       login,
+      register,
+      updateProfile,
       logout,
       isAdmin: user?.role === 'admin',
       isStaff: user?.role === 'admin' || user?.role === 'staff',
+      isCustomer: user?.role === 'customer',
     }),
-    [user, ready, login, logout],
+    [user, ready, login, register, updateProfile, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

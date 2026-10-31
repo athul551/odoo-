@@ -143,8 +143,8 @@ export default function SubscriptionsPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Subscriptions</h1>
-          <p className="mt-1 text-sm text-secondary">
+          <h1 className="text-2xl font-bold text-paper">Subscriptions</h1>
+          <p className="mt-1 text-sm text-faint">
             The contract lifecycle: draft → quotation → confirmed → active → closed.
           </p>
         </div>
@@ -203,7 +203,7 @@ export default function SubscriptionsPage() {
                     <Td>
                       <Link
                         to={`/subscriptions/${subscription.id}`}
-                        className="font-medium text-accent hover:text-accent"
+                        className="font-medium text-accent hover:text-accent-hover"
                       >
                         {subscription.number}
                       </Link>
@@ -216,14 +216,14 @@ export default function SubscriptionsPage() {
                     <Td>{subscription.customer_name}</Td>
                     <Td>
                       {subscription.plan_name}
-                      <span className="ml-1 text-xs text-muted">
+                      <span className="ml-1 text-xs text-faint">
                         {subscription.billing_frequency}
                       </span>
                     </Td>
                     <Td>
                       <StageBadge stage={subscription.stage} label={subscription.stage_display} />
                     </Td>
-                    <Td className="whitespace-nowrap text-secondary">
+                    <Td className="whitespace-nowrap text-faint">
                       {dateOnly(subscription.start_date)} → {dateOnly(subscription.expiry_date)}
                     </Td>
                     <Td>{money(subscription.total)}</Td>
@@ -317,7 +317,7 @@ export default function SubscriptionsPage() {
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-medium text-secondary">Lines</span>
+                <span className="text-xs font-medium text-muted">Lines</span>
                 <Button
                   size="xs"
                   variant="secondary"

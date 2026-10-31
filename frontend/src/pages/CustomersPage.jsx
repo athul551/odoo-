@@ -105,8 +105,8 @@ export default function CustomersPage() {
     <div className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Customers</h1>
-          <p className="mt-1 text-sm text-secondary">Organisations that hold subscriptions.</p>
+          <h1 className="text-2xl font-bold text-paper">Customers</h1>
+          <p className="mt-1 text-sm text-faint">Organisations that hold subscriptions.</p>
         </div>
         <div className="flex gap-2">
           <TextInput
@@ -144,13 +144,13 @@ export default function CustomersPage() {
                 {rows.length === 0 && <EmptyRow colSpan={6}>No customers match.</EmptyRow>}
                 {rows.map((customer) => (
                   <Tr key={customer.id}>
-                    <Td className="font-medium text-primary">{customer.name}</Td>
-                    <Td>{customer.contact_email || <span className="text-muted">—</span>}</Td>
-                    <Td>{customer.phone || <span className="text-muted">—</span>}</Td>
+                    <Td className="font-medium text-paper">{customer.name}</Td>
+                    <Td>{customer.contact_email || <span className="text-faint">—</span>}</Td>
+                    <Td>{customer.phone || <span className="text-faint">—</span>}</Td>
                     <Td>
                       <Badge>{customer.subscription_count ?? 0}</Badge>
                     </Td>
-                    <Td className="text-secondary">{dateOnly(customer.created_at)}</Td>
+                    <Td className="text-faint">{dateOnly(customer.created_at)}</Td>
                     <Td className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button size="xs" variant="ghost" onClick={() => openEdit(customer)}>

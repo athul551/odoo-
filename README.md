@@ -115,9 +115,12 @@ cd backend
 
 Any MCP client can connect through `backend/bin/brightloop-mcp`; see `docs/MCP.md` for Claude Code, Codex, Cursor and HTTP connector configuration, plus the safety model (role ceiling, read-only mode, dry-run billing). The normative contract is [`docs/MCP-SPEC.md`](docs/MCP-SPEC.md).
 
-## Backend console (frontend)
+## Frontend (calm-dark product UI)
 
-`frontend/` is a React console over the REST API, built to exercise the backend end to end: customers, catalog, the subscription stage machine, billing day, invoices/payments, and a Database page with migration state, table counts and a live request/SQL log.
+`frontend/` is the full product surface over the REST API, built in the calm-dark
+design system (`#1E1E1E` canvas, hairline panels, one `#7AA2F7` accent, 60px
+controls, 12-column layouts). Tokens live in `frontend/tailwind.config.js`;
+`docs/` and `.superdesign/design-system.md` describe the intent.
 
 ```bash
 # terminal 1
@@ -127,16 +130,20 @@ cd backend && .venv/bin/python manage.py runserver
 cd frontend && npm install && npm run dev
 ```
 
-Open `http://localhost:5173` and sign in with an admin account. If the database has none:
+Open `http://localhost:5173`. Sign-up is public and creates a Customer
+organization plus its first portal user; staff/admin accounts come from
+`manage.py createsuperuser` (or the admin Users page). After sign-in the app
+routes by role:
 
-```bash
-cd backend
-.venv/bin/python manage.py createsuperuser
-```
+| Role | Landing | Surfaces |
+|---|---|---|
+| Customer | `/portal` | Overview, subscriptions, invoices, account (profile, password) |
+| Staff / Admin | `/` | Dashboard, customers, catalog (products, plans, tax rules, quotation templates), subscriptions + stage machine, billing (preview, runs, invoices, payments), reporting (month-end + chase lists), database |
+| Admin only | — | Discounts, Users, Database (migrations, tables, request + SQL log) |
 
-The Dashboard has a **Seed demo tenant** button (admin) that creates a product, plan, two customers and three subscriptions in different stages, so the Billing page has something to preview and bill immediately.
-
-The Database page is served by `/api/ops/` and is enabled only while `OPS_TOOLS_ENABLED` is on (defaults to `DEBUG`). It can apply pending migrations and shows the last 300 requests and SQL statements of the worker that served the page.
+Auth screens are `/login`, `/signup`, `/forgot-password`, `/reset-password`.
+The Dashboard has a **Seed demo tenant** button (admin) so billing has
+something to preview and bill immediately.
 
 ## Operations
 
