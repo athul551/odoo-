@@ -48,6 +48,8 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, trim_whitespace=False)
     password_confirm = serializers.CharField(write_only=True, trim_whitespace=False)
     organization_name = serializers.CharField(max_length=255)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     contact_email = serializers.EmailField(required=False, allow_blank=True)
     phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
 
@@ -88,6 +90,8 @@ class RegisterSerializer(serializers.Serializer):
             password=validated_data["password"],
             role=User.Role.CUSTOMER,
             customer=customer,
+            first_name=validated_data.get("first_name", ""),
+            last_name=validated_data.get("last_name", ""),
         )
 
 

@@ -49,6 +49,15 @@ class RegisterTests(TestCase):
         self.assertTrue(user.check_password(PASSWORD))
         self.assertFalse(user.is_staff)
 
+    def test_signup_stores_the_optional_name(self):
+        response = self.client.post(
+            REGISTER,
+            self.payload(first_name="Frodo", last_name="Baggins"),
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["user"]["first_name"], "Frodo")
+        self.assertEqual(response.json()["user"]["last_name"], "Baggins")
+
     def test_only_one_email_across_roles_case_insensitively(self):
         make_user("taken@brightloop.io", User.Role.STAFF)
         response = self.client.post(REGISTER, self.payload(email="TAKEN@brightloop.io"))
