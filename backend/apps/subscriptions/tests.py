@@ -448,3 +448,70 @@ class QuotationTemplateTests(TestCase):
     def test_validity_days_positive(self):
         with self.assertRaises(ValidationError):
             QuotationTemplate(name="Bad", plan=self.fx.plan, validity_days=0).full_clean()
+
+
+class SchedulerCommandTests(TestCase):
+    """
+    `auto_close_expired` used to be unreachable code, so the per-plan
+    auto-close switch the admin sets did nothing at all.
+    """
+
+    def test_sweep_command_closes_auto_close_terms(self):
+        import io
+
+        from django.core.management import call_command
+
+        fx = Fixture()
+        auto_plan = Plan.objects.create(
+            product=fx.product, name="Auto monthly", billing_frequency=Frequency.MONTHLY,
+            price=Decimal("100.00"), minimum_quantity=1,
+            availability_start=date(2025, 1, 1), auto_close_on_expiry=True,
+        )
+        auto_sub = Subscription.objects.create(
+            number="SUB-AUTO-1", customer=fx.customer_org, plan=auto_plan,
+            stage=Subscription.Stage.ACTIVE, start_date=date(2026, 1, 1),
+            expiry_date=date(2026, 2, 1),
+        )
+        manual_sub = Subscription.objects.create(
+            number="SUB-MANUAL-1", customer=fx.customer_org, plan=fx.plan,
+            stage=Subscription.Stage.ACTIVE, start_date=date(2026, 1, 1),
+            expiry_date=date(2026, 2, 1),
+        )
+
+        out = io.StringIO()
+        call_command("sweep_subscriptions", "--on", "2026-03-01", stdout=out)
+
+        auto_sub.refresh_from_db()
+        manual_sub.refresh_from_db()
+        self.assertEqual(auto_sub.stage, Subscription.Stage.CLOSED)
+        self.assertEqual(manual_sub.stage, Subscription.Stage.ACTIVE)
+        self.assertIn("1", out.getvalue())
+
+
+class BillDayCommandTests(TestCase):
+    def test_dry_run_writes_nothing_and_a_real_run_bills(self):
+        import io
+
+        from django.core.management import call_command
+
+        from apps.billing.models import Invoice
+
+        fx = Fixture()
+        sub = Subscription.objects.create(
+            number="SUB-CMD-1", customer=fx.customer_org, plan=fx.plan,
+            stage=Subscription.Stage.ACTIVE, start_date=date(2026, 1, 1),
+            expiry_date=date(2026, 2, 1), subtotal=Decimal("100.00"),
+            tax_total=Decimal("18.00"), total=Decimal("118.00"),
+        )
+        SubscriptionLine.objects.create(
+            subscription=sub, product=fx.product, quantity=1,
+            unit_price=Decimal("100.00"), tax_rule=fx.tax,
+        )
+
+        call_command("bill_day", "--on", "2026-01-05", "--dry-run", stdout=io.StringIO())
+        self.assertEqual(Invoice.objects.count(), 0)
+
+        out = io.StringIO()
+        call_command("bill_day", "--on", "2026-01-05", stdout=out)
+        self.assertEqual(Invoice.objects.filter(subscription=sub).count(), 1)
+        self.assertIn("billed", out.getvalue().lower())
