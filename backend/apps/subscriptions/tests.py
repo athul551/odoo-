@@ -515,3 +515,49 @@ class BillDayCommandTests(TestCase):
         call_command("bill_day", "--on", "2026-01-05", stdout=out)
         self.assertEqual(Invoice.objects.filter(subscription=sub).count(), 1)
         self.assertIn("billed", out.getvalue().lower())
+
+    def test_a_failed_record_exits_non_zero_but_keeps_good_invoices(self):
+        import io
+
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        from apps.billing.models import BillingRun, Invoice
+
+        fx = Fixture()
+        broken_plan = Plan.objects.create(
+            product=fx.product, name="Hourly", billing_frequency="hourly",
+            price=Decimal("10.00"), minimum_quantity=1,
+            availability_start=date(2025, 1, 1),
+        )
+        broken = Subscription.objects.create(
+            number="SUB-CMD-BROKEN", customer=fx.customer_org, plan=broken_plan,
+            stage=Subscription.Stage.ACTIVE, start_date=date(2026, 1, 1),
+            expiry_date=date(2026, 2, 1), subtotal=Decimal("10.00"),
+            tax_total=Decimal("1.80"), total=Decimal("11.80"),
+        )
+        SubscriptionLine.objects.create(
+            subscription=broken, product=fx.product, quantity=1,
+            unit_price=Decimal("10.00"),
+        )
+        good = Subscription.objects.create(
+            number="SUB-CMD-GOOD", customer=fx.customer_org, plan=fx.plan,
+            stage=Subscription.Stage.ACTIVE, start_date=date(2026, 1, 1),
+            expiry_date=date(2026, 2, 1), subtotal=Decimal("100.00"),
+            tax_total=Decimal("18.00"), total=Decimal("118.00"),
+        )
+        SubscriptionLine.objects.create(
+            subscription=good, product=fx.product, quantity=1,
+            unit_price=Decimal("100.00"), tax_rule=fx.tax,
+        )
+
+        with self.assertRaises(CommandError):
+            call_command(
+                "bill_day", "--on", "2026-01-05",
+                stdout=io.StringIO(), stderr=io.StringIO(),
+            )
+
+        # The scheduler alert must not cost the healthy tenants their invoices.
+        self.assertEqual(Invoice.objects.filter(subscription=good).count(), 1)
+        self.assertEqual(Invoice.objects.filter(subscription=broken).count(), 0)
+        self.assertEqual(BillingRun.objects.latest("id").failed_count, 1)
