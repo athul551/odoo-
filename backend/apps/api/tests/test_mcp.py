@@ -245,6 +245,36 @@ class WriteToolTests(ApiTestCase):
                              {"on": "2026-11-15", "confirm": True}))
         self.assertEqual(again["billed_count"], 0)
 
+    def test_sweep_dry_run_then_confirm(self):
+        """The per-plan auto-close switch needs a reachable trigger."""
+        subscription = self.create_subscription()
+        for action in ("send_quotation", "confirm", "activate"):
+            call(self.server, "subscription_transition",
+                 {"subscription": subscription["number"], "action": action})
+        Subscription.objects.filter(number=subscription["number"]).update(
+            start_date=date(2026, 1, 1), expiry_date=date(2026, 2, 1)
+        )
+        self.plan.auto_close_on_expiry = True
+        self.plan.save(update_fields=["auto_close_on_expiry"])
+
+        preview = payload(call(self.server, "sweep_expired_subscriptions",
+                               {"on": "2026-03-01"}))
+        self.assertFalse(preview["executed"])
+        self.assertEqual(preview["would_close"], [subscription["number"]])
+        self.assertEqual(
+            Subscription.objects.get(number=subscription["number"]).stage,
+            Subscription.Stage.ACTIVE,
+        )
+
+        result = payload(call(self.server, "sweep_expired_subscriptions",
+                              {"on": "2026-03-01", "confirm": True}))
+        self.assertTrue(result["executed"])
+        self.assertEqual(result["closed"], [subscription["number"]])
+        self.assertEqual(
+            Subscription.objects.get(number=subscription["number"]).stage,
+            Subscription.Stage.CLOSED,
+        )
+
     def test_payment_flow(self):
         subscription = self.create_subscription()
         for action in ("send_quotation", "confirm", "activate"):
@@ -330,3 +360,29 @@ class HttpTransportTests(ApiTestCase):
         with self.post(port, {"jsonrpc": "2.0",
                               "method": "notifications/initialized"}) as response:
             self.assertEqual(response.status, 202)
+
+
+class HttpFailClosedTests(TestCase):
+    """
+    The HTTP transport used to accept everyone when no token was configured.
+    Bind it to 0.0.0.0 and every network peer became the configured actor.
+    """
+
+    def test_non_loopback_bind_without_a_token_is_refused(self):
+        with self.assertRaises(ValueError) as ctx:
+            build_http_server(mcp=None, host="0.0.0.0", port=0)
+        self.assertIn("token", str(ctx.exception).lower())
+
+    def test_loopback_bind_without_a_token_is_allowed(self):
+        httpd = build_http_server(mcp=None, host="127.0.0.1", port=0)
+        try:
+            self.assertIsNone(httpd.token)
+        finally:
+            httpd.server_close()
+
+    def test_any_bind_with_a_token_is_allowed(self):
+        httpd = build_http_server(mcp=None, host="0.0.0.0", port=0, token="s3cret")
+        try:
+            self.assertEqual(httpd.token, "s3cret")
+        finally:
+            httpd.server_close()

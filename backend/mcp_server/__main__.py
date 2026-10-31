@@ -129,13 +129,17 @@ def main(argv=None) -> int:
     server = McpServer(context=context, tools=build_tools())
 
     if args.transport == "http":
-        httpd = build_http_server(
-            mcp=server, host=args.host, port=args.port, token=args.token
-        )
+        try:
+            httpd = build_http_server(
+                mcp=server, host=args.host, port=args.port, token=args.token
+            )
+        except ValueError as exc:
+            sys.stderr.write(f"[brightloop-mcp] {exc}\n")
+            return 2
         sys.stderr.write(
             f"[brightloop-mcp] acting as {actor.email} ({actor.role}); "
             f"HTTP on http://{args.host}:{args.port}/mcp"
-            f"{' (token required)' if args.token else ''}"
+            f"{' (token required)' if args.token else ' (loopback only, no token)'}"
             f"{' [read-only]' if args.read_only else ''}\n"
         )
         try:

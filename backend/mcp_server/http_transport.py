@@ -16,6 +16,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY_BYTES = 1_000_000
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1", "[::1]"})
 
 
 class McpRequestHandler(BaseHTTPRequestHandler):
@@ -35,11 +36,16 @@ class McpRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _authorised(self) -> bool:
+        """
+        Fail closed. A server bound beyond loopback without a token would let
+        any network peer act as the configured --actor (possibly an admin),
+        so that combination is refused at construction and again here.
+        """
         token = getattr(self.server, "token", None)
-        if not token:
-            return True
-        header = self.headers.get("Authorization", "")
-        return header == f"Bearer {token}"
+        if token:
+            return self.headers.get("Authorization", "") == f"Bearer {token}"
+        host = getattr(self.server, "bind_host", "127.0.0.1")
+        return host in LOOPBACK_HOSTS
 
     def _read_body(self) -> bytes:
         try:
@@ -92,8 +98,22 @@ class McpRequestHandler(BaseHTTPRequestHandler):
 
 def build_http_server(*, mcp, host: str = "127.0.0.1", port: int = 8765,
                       token: str | None = None) -> ThreadingHTTPServer:
+    """
+    Build the HTTP transport.
+
+    Refuses to expose itself beyond loopback without a bearer token: an
+    unauthenticated 0.0.0.0 bind would let any network peer act as the
+    configured actor, including running billing.
+    """
+    if not token and host not in LOOPBACK_HOSTS:
+        raise ValueError(
+            f"refusing to bind HTTP transport to {host!r} without a token. "
+            "Pass --token (or BRIGHTLOOP_MCP_TOKEN); open binds must "
+            "authenticate, or keep the default 127.0.0.1 for local agents."
+        )
     httpd = ThreadingHTTPServer((host, port), McpRequestHandler)
     httpd.mcp = mcp
     httpd.token = token
+    httpd.bind_host = host
     httpd.session_id = "brightloop"
     return httpd
