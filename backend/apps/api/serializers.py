@@ -32,7 +32,7 @@ from apps.payments.models import Payment
 from apps.payments.services import record_payment
 from apps.products.models import Plan, Product, ProductVariant
 from apps.quotations.models import QuotationTemplate, QuotationTemplateLine
-from apps.subscriptions.models import Subscription, SubscriptionLine
+from apps.subscriptions.models import PausePeriod, Subscription, SubscriptionLine
 from apps.subscriptions.services import add_line, create_subscription
 
 
@@ -311,6 +311,13 @@ class SubscriptionLineSerializer(serializers.ModelSerializer):
         return f"{obj.variant.attribute}={obj.variant.value}"
 
 
+class PausePeriodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PausePeriod
+        fields = ["id", "started_on", "ended_on", "reason"]
+        read_only_fields = fields
+
+
 class SubscriptionSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     plan_name = serializers.CharField(source="plan.name", read_only=True)
@@ -318,6 +325,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         source="plan.billing_frequency", read_only=True
     )
     stage_display = serializers.CharField(source="get_stage_display", read_only=True)
+    pause_periods = PausePeriodSerializer(many=True, read_only=True)
     lines = SubscriptionLineSerializer(many=True, read_only=True)
     is_expired = serializers.BooleanField(read_only=True)
     invoice_count = serializers.IntegerField(read_only=True, required=False)
@@ -329,7 +337,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
             "billing_frequency", "stage", "stage_display", "start_date",
             "expiry_date", "validity_until", "payment_terms_days", "is_paused",
             "is_expired", "closed_reason", "subtotal", "tax_total", "total",
-            "invoice_count", "lines", "created_at", "updated_at",
+            "invoice_count", "pause_periods", "lines", "created_at", "updated_at",
         ]
         read_only_fields = fields
 
@@ -581,7 +589,7 @@ class BillingRunSerializer(serializers.ModelSerializer):
         model = BillingRun
         fields = [
             "id", "ran_on", "started_at", "finished_at", "billed_count",
-            "skipped_count", "report", "invoice_count",
+            "skipped_count", "failed_count", "report", "invoice_count",
         ]
         read_only_fields = fields
 
