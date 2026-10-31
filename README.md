@@ -115,6 +115,29 @@ cd backend
 
 Any MCP client can connect through `backend/bin/brightloop-mcp`; see `docs/MCP.md` for Claude Code, Codex, Cursor and HTTP connector configuration, plus the safety model (role ceiling, read-only mode, dry-run billing).
 
+## Backend console (frontend)
+
+`frontend/` is a React console over the REST API, built to exercise the backend end to end: customers, catalog, the subscription stage machine, billing day, invoices/payments, and a Database page with migration state, table counts and a live request/SQL log.
+
+```bash
+# terminal 1
+cd backend && .venv/bin/python manage.py runserver
+
+# terminal 2
+cd frontend && npm install && npm run dev
+```
+
+Open `http://localhost:5173` and sign in with an admin account. If the database has none:
+
+```bash
+cd backend
+.venv/bin/python manage.py createsuperuser
+```
+
+The Dashboard has a **Seed demo tenant** button (admin) that creates a product, plan, two customers and three subscriptions in different stages, so the Billing page has something to preview and bill immediately.
+
+The Database page is served by `/api/ops/` and is enabled only while `OPS_TOOLS_ENABLED` is on (defaults to `DEBUG`). It can apply pending migrations and shows the last 300 requests and SQL statements of the worker that served the page.
+
 ## Operations
 
 Two management commands are the scheduler surface; point cron (or a sidecar) at them nightly:
