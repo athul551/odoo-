@@ -290,10 +290,50 @@ def run_billing_day(*, on: date | None = None, actor=None) -> BillingRun:
     return run
 
 
+def preview_billing_day(*, on: date | None = None, limit: int = 200) -> dict:
+    """
+    Read-only twin of run_billing_day: exactly the same due-period scan, no
+    writes and no row locks. Lets an operator (or an agent) answer "what would
+    tonight bill?" before committing the batch.
+    """
+    on = on or date.today()
+    candidates = (
+        Subscription.objects.filter(stage=Stage.ACTIVE, is_paused=False,
+                                    expiry_date__gt=on)
+        .select_related("plan", "customer")
+        .order_by("pk")
+    )
+    items, subscriptions_touched = [], 0
+    for sub in candidates:
+        due_periods = [
+            start for start in _period_starts_due(sub, on)
+            if not sub.invoices.filter(
+                period_start=start, status__in=Invoice.OPEN_STATUSES
+            ).exists()
+        ]
+        if not due_periods:
+            continue
+        subscriptions_touched += 1
+        for start in due_periods:
+            items.append({
+                "subscription": sub.number,
+                "customer": sub.customer.name,
+                "period_start": start.isoformat(),
+                "period_end": advance(start, sub.plan.billing_frequency).isoformat(),
+                "estimated_subtotal": str(sub.subtotal),
+            })
+    return {
+        "on": on.isoformat(),
+        "subscriptions": subscriptions_touched,
+        "invoices": len(items),
+        "truncated": len(items) > limit,
+        "items": items[:limit],
+    }
+
+
 # ---------------------------------------------------------------------------
 # invoice lifecycle
 # ---------------------------------------------------------------------------
-
 def _sync_back(original: Invoice, locked: Invoice) -> Invoice:
     """
     The locked row is the truth after the write; mirror it onto the caller's
