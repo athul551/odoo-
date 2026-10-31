@@ -17,7 +17,7 @@ INSTALLED_APPS = [
     "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist",
     "apps.common", "apps.accounts", "apps.products", "apps.customers",
     "apps.quotations", "apps.subscriptions", "apps.billing", "apps.payments",
-    "apps.reporting", "apps.api",
+    "apps.reporting", "apps.api", "apps.ops",
 ]
 
 MIDDLEWARE = [
@@ -25,6 +25,8 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Innermost: records the request and the SQL it ran (developer console).
+    "apps.ops.activity.ActivityMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{
@@ -54,6 +56,10 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Developer console: migration status/runner, table stats, request + SQL log.
+# Defaults to DEBUG so a normal deployment never exposes it.
+OPS_TOOLS_ENABLED = env.bool("OPS_TOOLS_ENABLED", default=DEBUG)
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:5173"])
 
